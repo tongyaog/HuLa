@@ -14,9 +14,11 @@ import { useSettingStore } from '@/stores/setting.ts'
 import { save } from '@tauri-apps/plugin-dialog'
 import { useDownload } from '@/hooks/useDownload'
 import { useGroupStore } from '@/stores/group'
+import { useWindow } from './useWindow'
 
 export const useChatMain = () => {
   const { removeTag, openMsgSession, userUid } = useCommon()
+  const { createWebviewWindow } = useWindow()
   const settingStore = useSettingStore()
   const { chat } = storeToRefs(settingStore)
   const globalStore = useGlobalStore()
@@ -32,13 +34,13 @@ export const useChatMain = () => {
   /** 是否是超级管理员 */
   // const isAdmin = computed(() => userInfo?.power === PowerEnum.ADMIN)
   /** 选中的气泡消息 */
-  const activeBubble = ref(-1)
+  const activeBubble = ref('')
   /** 提醒框标题 */
   const tips = ref()
   /** 是否显示删除信息的弹窗 */
   const modalShow = ref(false)
   /** 需要删除信息的下标 */
-  const delIndex = ref(0)
+  const delIndex = ref('')
   /** 悬浮的页脚 */
   const floatFooter = ref(false)
   /** 记录历史消息下标 */
@@ -65,7 +67,7 @@ export const useChatMain = () => {
       label: '撤回',
       icon: 'corner-down-left',
       click: async (item: MessageType) => {
-        const res = (await apis.recallMsg({ roomId: 1, msgId: item.message.id })) as any
+        const res = (await apis.recallMsg({ roomId: '1', msgId: item.message.id })) as any
         if (res) {
           window.$message.error(res)
           return
@@ -232,7 +234,8 @@ export const useChatMain = () => {
     {
       label: '添加好友',
       icon: 'people-plus',
-      click: (item: any) => {
+      click: async (item: any) => {
+        await createWebviewWindow('申请加好友', 'addFriendVerify', 380, 300, '', false, 380, 300)
         globalStore.addFriendModalInfo.show = true
         globalStore.addFriendModalInfo.uid = item.uid || item.fromUser.uid
       },
@@ -260,7 +263,7 @@ export const useChatMain = () => {
 
         // 2. 检查房间号是否为1(频道)
         const roomId = globalStore.currentSession?.roomId
-        if (!roomId || roomId === 1) return false
+        if (!roomId || roomId === '1') return false
 
         // 3. 获取目标用户ID
         const targetUid = item.uid || item.fromUser?.uid
@@ -296,7 +299,7 @@ export const useChatMain = () => {
 
         // 2. 检查房间号是否为1(频道)
         const roomId = globalStore.currentSession?.roomId
-        if (!roomId || roomId === 1) return false
+        if (!roomId || roomId === '1') return false
 
         // 3. 获取目标用户ID
         const targetUid = item.uid || item.fromUser?.uid
@@ -337,7 +340,7 @@ export const useChatMain = () => {
 
         // 2. 检查房间号是否为1(频道)
         const roomId = globalStore.currentSession?.roomId
-        if (!roomId || roomId === 1) return false
+        if (!roomId || roomId === '1') return false
 
         // 3. 获取目标用户ID
         const targetUid = item.uid || item.fromUser?.uid
@@ -388,7 +391,7 @@ export const useChatMain = () => {
    * @param uid 用户ID
    * @param type 检查类型: 'friend' - 仅好友, 'all' - 好友或自己
    */
-  const checkFriendRelation = (uid: number, type: 'friend' | 'all' = 'all') => {
+  const checkFriendRelation = (uid: string, type: 'friend' | 'all' = 'all') => {
     const contactStore = useContactStore()
     const userStore = useUserStore()
     const myUid = userStore.userInfo.uid

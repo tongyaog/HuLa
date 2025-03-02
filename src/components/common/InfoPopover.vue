@@ -52,7 +52,7 @@
         </template>
 
         <div
-          v-if="useUserInfo(uid).value.wearingItemId === 6"
+          v-if="useUserInfo(uid).value.wearingItemId === '6'"
           class="absolute top-72px left-142px bg-[--bate-bg] border-(1px solid [--bate-color]) text-(12px [--bate-color] center) font-bold p-8px rounded-full">
           HuLa开发工程师
         </div>
@@ -129,11 +129,13 @@ import { useMitt } from '@/hooks/useMitt'
 import { useGlobalStore } from '@/stores/global'
 import { useUserStatusStore } from '@/stores/userStatus'
 import { storeToRefs } from 'pinia'
+import { useWindow } from '@/hooks/useWindow'
 
 const { uid, activeStatus } = defineProps<{
-  uid: number
+  uid: string
   activeStatus?: OnlineEnum
 }>()
+const { createWebviewWindow } = useWindow()
 const { userUid, openMsgSession } = useCommon()
 const globalStore = useGlobalStore()
 const { openContent } = leftHook()
@@ -153,7 +155,7 @@ const statusIcon = computed(() => {
   const userStateId = userInfo.userStateId
 
   // 如果在线且有特殊状态
-  if (userStateId && userStateId > 1) {
+  if (userStateId && userStateId !== '1') {
     const state = stateList.value.find((s) => s.id === userStateId)
     if (state) {
       return state.url
@@ -167,7 +169,7 @@ const currentStateTitle = computed(() => {
   const userInfo = useUserInfo(uid).value
   const userStateId = userInfo.userStateId
 
-  if (userStateId && userStateId > 1) {
+  if (userStateId && userStateId !== '1') {
     const state = stateList.value.find((s) => s.id === userStateId)
     if (state) {
       return state.title
@@ -180,7 +182,8 @@ const openEditInfo = () => {
   useMitt.emit(MittEnum.OPEN_EDIT_INFO)
 }
 
-const addFriend = () => {
+const addFriend = async () => {
+  await createWebviewWindow('申请加好友', 'addFriendVerify', 380, 300, '', false, 380, 300)
   globalStore.addFriendModalInfo.show = true
   globalStore.addFriendModalInfo.uid = uid
 }
@@ -188,7 +191,7 @@ const addFriend = () => {
 // 注入 enableAllScroll 方法
 const { enableScroll } = inject('popoverControls', { enableScroll: () => {} })
 
-const handleOpenMsgSession = async (uid: number) => {
+const handleOpenMsgSession = async (uid: string) => {
   enableScroll() // 在打开新会话前恢复所有滚动
   await openMsgSession(uid)
 }

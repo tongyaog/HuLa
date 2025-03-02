@@ -17,65 +17,68 @@
       </template>
       <template #fallback>
         <div class="flex items-center justify-center size-full">
-          <LoadingSpinner />
+          <LoadingSpinner :percentage="loadingPercentage" :loading-text="loadingText" />
         </div>
       </template>
     </Suspense>
   </div>
-
-  <!-- 模态框也可以缓存 -->
-  <keep-alive>
-    <AsyncAddFriendsModal />
-  </keep-alive>
 </template>
 
 <script setup lang="ts">
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useMitt } from '@/hooks/useMitt.ts'
-import { ChangeTypeEnum, MittEnum, OnlineEnum, RoomTypeEnum } from '@/enums'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { ChangeTypeEnum, MittEnum, ModalEnum, OnlineEnum, RoomTypeEnum } from '@/enums'
+import { getCurrentWebviewWindow, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useGlobalStore } from '@/stores/global.ts'
 import { useContactStore } from '@/stores/contacts.ts'
 import { useGroupStore } from '@/stores/group'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { LoginSuccessResType, OnStatusChangeType, WsResponseMessageType, WsTokenExpire } from '@/services/wsType.ts'
-import { LoginStatus, useWsLoginStore } from '@/stores/ws.ts'
 import type { MarkItemType, MessageType, RevokedMsgType } from '@/services/types.ts'
-import { useLogin } from '@/hooks/useLogin.ts'
 import { computedToken } from '@/services/request'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { useUserInfo } from '@/hooks/useCached.ts'
 import { emitTo } from '@tauri-apps/api/event'
 import { useThrottleFn } from '@vueuse/core'
-import apis from '@/services/apis.ts'
-import { confirm } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
 import { useCachedStore } from '@/stores/cached'
 import { clearListener, initListener, readCountQueue } from '@/utils/ReadCountQueue'
 
-// 异步加载组件时增加缓存配置
+const loadingPercentage = ref(10)
+const loadingText = ref('正在加载应用...')
+
+// 修改异步组件的加载配置
 const AsyncLeft = defineAsyncComponent({
-  loader: async () => await import('./left/index.vue'),
+  loader: async () => {
+    loadingText.value = '正在加载左侧面板...'
+    const comp = await import('./left/index.vue')
+    loadingPercentage.value = 33
+    return comp
+  },
   delay: 600,
   timeout: 3000
 })
 
-// 其他异步组件也类似配置
 const AsyncCenter = defineAsyncComponent({
-  loader: async () => await import('./center/index.vue'),
+  loader: async () => {
+    await import('./left/index.vue')
+    loadingText.value = '正在加载中间面板...'
+    const comp = await import('./center/index.vue')
+    loadingPercentage.value = 66
+    return comp
+  },
   delay: 600,
   timeout: 3000
 })
 
 const AsyncRight = defineAsyncComponent({
-  loader: async () => await import('./right/index.vue'),
-  delay: 600,
-  timeout: 3000
-})
-
-const AsyncAddFriendsModal = defineAsyncComponent({
-  loader: async () => await import('@/components/common/AddFriendsModal.vue'),
+  loader: async () => {
+    await import('./center/index.vue')
+    loadingText.value = '正在加载右侧面板...'
+    const comp = await import('./right/index.vue')
+    loadingPercentage.value = 100
+    return comp
+  },
   delay: 600,
   timeout: 3000
 })
@@ -84,10 +87,8 @@ const globalStore = useGlobalStore()
 const contactStore = useContactStore()
 const groupStore = useGroupStore()
 const userStore = useUserStore()
-const loginStore = useWsLoginStore()
 const chatStore = useChatStore()
 const cachedStore = useCachedStore()
-const { logout } = useLogin()
 // 清空未读消息
 // globalStore.unReadMark.newMsgUnreadCount = 0
 const shrinkStatus = ref(false)
@@ -113,13 +114,13 @@ useMitt.on(MittEnum.SHRINK_WINDOW, (event: boolean) => {
   shrinkStatus.value = event
 })
 
-useMitt.on(WsResponseMessageType.LOGIN_SUCCESS, (data: LoginSuccessResType) => {
+useMitt.on(WsResponseMessageType.LOGIN_SUCCESS, async (data: LoginSuccessResType) => {
   const { ...rest } = data
   // 更新一下请求里面的 token.
   computedToken.clear()
   computedToken.get()
   // 自己更新自己上线
-  groupStore.batchUpdateUserStatus([
+  await groupStore.batchUpdateUserStatus([
     {
       activeStatus: OnlineEnum.ONLINE,
       avatar: rest.avatar,
@@ -129,7 +130,7 @@ useMitt.on(WsResponseMessageType.LOGIN_SUCCESS, (data: LoginSuccessResType) => {
     }
   ])
 })
-useMitt.on(WsResponseMessageType.USER_STATE_CHANGE, async (data: { uid: number; userStateId: number }) => {
+useMitt.on(WsResponseMessageType.USER_STATE_CHANGE, async (data: { uid: string; userStateId: string }) => {
   console.log('收到用户状态改变', data)
   await cachedStore.updateUserState(data)
 })
@@ -140,30 +141,27 @@ useMitt.on(WsResponseMessageType.ONLINE, async (onStatusChangeType: OnStatusChan
   console.log('收到用户上线通知')
   groupStore.countInfo.onlineNum = onStatusChangeType.onlineNum
   // groupStore.countInfo.totalNum = onStatusChangeType.totalNum
-  groupStore.batchUpdateUserStatus(onStatusChangeType.changeList)
+  await groupStore.batchUpdateUserStatus(onStatusChangeType.changeList)
   await groupStore.refreshGroupMembers()
 })
 useMitt.on(WsResponseMessageType.TOKEN_EXPIRED, async (wsTokenExpire: WsTokenExpire) => {
-  console.log('账号在其他设备登录', wsTokenExpire)
-  if (userStore.userInfo.uid === wsTokenExpire.uid && userStore.userInfo.client === wsTokenExpire.client) {
-    // TODO: 换成web的弹出框
-    await confirm('账号在其他设备' + (wsTokenExpire.ip ? wsTokenExpire.ip : '未知IP') + '登录')
-    // token已在后端清空，只需要返回登录页
-    await logout()
-    await apis.logout()
-    // 清除未读数
-    chatStore.clearUnreadCount()
-    // 清除系统托盘图标上的未读数
-    await invoke('set_badge_count', { count: null })
-    userStore.isSign = false
-    userStore.userInfo = {}
-    localStorage.removeItem('user')
-    localStorage.removeItem('TOKEN')
-    localStorage.removeItem('REFRESH_TOKEN')
-    loginStore.loginStatus = LoginStatus.Init
+  if (
+    Number(userStore.userInfo.uid) === Number(wsTokenExpire.uid) &&
+    userStore.userInfo.client === wsTokenExpire.client
+  ) {
+    // 聚焦主窗口
+    const home = await WebviewWindow.getByLabel('home')
+    await home?.setFocus()
+    console.log('账号在其他设备登录', wsTokenExpire)
+    useMitt.emit(MittEnum.LEFT_MODAL_SHOW, {
+      type: ModalEnum.REMOTE_LOGIN,
+      props: {
+        ip: wsTokenExpire.ip
+      }
+    })
   }
 })
-useMitt.on(WsResponseMessageType.INVALID_USER, (param: { uid: number }) => {
+useMitt.on(WsResponseMessageType.INVALID_USER, (param: { uid: string }) => {
   console.log('无效用户')
   const data = param
   // 消息列表删掉拉黑的发言
@@ -179,7 +177,6 @@ useMitt.on(WsResponseMessageType.MSG_RECALL, (data: RevokedMsgType) => {
 })
 useMitt.on(WsResponseMessageType.RECEIVE_MESSAGE, async (data: MessageType) => {
   chatStore.pushMsg(data)
-  console.log('接收消息', data)
   // 接收到通知就设置图标闪烁
   const username = useUserInfo(data.fromUser.uid).value.name!
   // 不是自己发的消息才通知
@@ -213,8 +210,8 @@ useMitt.on(WsResponseMessageType.REQUEST_NEW_FRIEND, async (data: { uid: number;
 useMitt.on(
   WsResponseMessageType.NEW_FRIEND_SESSION,
   (param: {
-    roomId: number
-    uid: number
+    roomId: string
+    uid: string
     changeType: ChangeTypeEnum
     activeStatus: OnlineEnum
     lastOptTime: number

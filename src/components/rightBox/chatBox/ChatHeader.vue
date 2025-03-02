@@ -260,10 +260,8 @@ const isOnline = computed(() => {
 })
 /** 是否还是好友 */
 const shouldShowDeleteFriend = computed(() => {
-  // 如果是群聊直接返回false
   if (activeItem.type === RoomTypeEnum.GROUP) return false
-  // 判断id是否存在,存在则为好友关系
-  return !!activeItem.id
+  return contactStore.contactsList.some((item) => item.uid === activeItem.id)
 })
 const groupUserList = computed(() => groupStore.userList)
 const messageOptions = computed(() => chatStore.currentMessageOptions)
@@ -279,7 +277,8 @@ const userList = computed(() => {
       }
     })
     .sort((a, b) => {
-      return a.uid - b.uid // 根据 uid 升序排序
+      // 将uid转换为数字进行比较
+      return Number(a.uid) - Number(b.uid)
     })
     .slice(0, 10)
 })
@@ -378,7 +377,7 @@ const handleConfirm = () => {
       // TODO: 删除后当前删除的人提示不准确，无论是删除方还是被删除方都提示“您已被对方拉黑”
     })
   } else if (optionsType.value === RoomActEnum.EXIT_GROUP) {
-    if (activeItem.roomId === 1) {
+    if (activeItem.roomId === '1') {
       window.$message.warning('无法退出频道')
       modalShow.value = false
       return

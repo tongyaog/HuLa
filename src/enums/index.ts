@@ -29,7 +29,9 @@ export enum URLEnum {
   /**房间*/
   ROOM = '/room',
   /**oss*/
-  OSS = '/oss'
+  OSS = '/oss',
+  /**系统*/
+  SYSTEM = '/system'
 }
 
 /** tauri原生跨窗口通信时传输的类型 */
@@ -52,10 +54,6 @@ export enum EventEnum {
 
 /** Mitt兄弟组件通信 */
 export enum MittEnum {
-  /** 添加好友   @author mint */
-  ADD_FRIEND_INIT = 'addFriendInit',
-  /** 添加好友就绪事件  @author mint */
-  ADD_FRIEND_READY = 'addFriendReady',
   /** 更新消息数量 */
   UPDATE_MSG_TOTAL = 'updateMsgTotal',
   /** 显示消息框 */
@@ -291,7 +289,9 @@ export enum ModalEnum {
   /** 锁屏弹窗 */
   LOCK_SCREEN,
   /** 检查更新弹窗 */
-  CHECK_UPDATE
+  CHECK_UPDATE,
+  /** 异地登录弹窗 */
+  REMOTE_LOGIN
 }
 
 /** MacOS键盘映射 */

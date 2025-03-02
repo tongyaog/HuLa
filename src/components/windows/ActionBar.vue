@@ -92,7 +92,6 @@ import { emit } from '@tauri-apps/api/event'
 import { CloseBxEnum, EventEnum, MittEnum } from '@/enums'
 import { type } from '@tauri-apps/plugin-os'
 import router from '@/router'
-import apis from '@/services/apis.ts'
 import { exit } from '@tauri-apps/plugin-process'
 import { useTauriListener } from '@/hooks/useTauriListener'
 
@@ -116,9 +115,9 @@ const {
   proxy?: boolean
 }>()
 const { getWindowTop, setWindowTop } = useAlwaysOnTopStore()
-const { pushListeners, addListener } = useTauriListener()
+const { pushListeners } = useTauriListener()
 const settingStore = useSettingStore()
-const { tips, escClose, login } = storeToRefs(settingStore)
+const { tips, escClose } = storeToRefs(settingStore)
 const { resizeWindow } = useWindow()
 const tipsRef = reactive({
   type: tips.value.type,
@@ -147,12 +146,20 @@ watchEffect(() => {
       /** 退出账号前把窗口全部关闭 */
       if (appWindow.label !== 'login') {
         await nextTick()
-        await appWindow.close()
+        // 针对不同系统采用不同关闭策略
+        if (type() === 'macos') {
+          // macOS 上先隐藏窗口，然后延迟关闭
+          await appWindow.hide()
+          setTimeout(async () => {
+            await appWindow.close()
+          }, 300)
+        } else {
+          // Windows/Linux 直接关闭
+          await appWindow.close()
+        }
       }
     }),
     appWindow.listen(EventEnum.EXIT, async () => {
-      // 发送下线通知
-      await offline()
       await exit(0)
     })
   ])
@@ -244,26 +251,11 @@ const handleCloseWin = async () => {
   }
 }
 
-const offline = async () => {
-  apis.offline().catch(() => {
-    // 通知下线失败也没关系
-  })
-  if (!login.value.autoLogin) {
-    localStorage.removeItem('TOKEN')
-    localStorage.removeItem('REFRESH_TOKEN')
-  }
-}
 useMitt.on('handleCloseWin', handleCloseWin)
 // 添加和移除resize事件监听器
 onMounted(async () => {
   window.addEventListener('resize', handleResize)
   osType.value = type()
-  await addListener(
-    appWindow.listen('offline', () => {
-      // TODO: 不一定成功
-      offline()
-    })
-  )
 })
 
 onUnmounted(() => {

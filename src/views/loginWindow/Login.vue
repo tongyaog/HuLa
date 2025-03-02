@@ -5,7 +5,7 @@
     <ActionBar :max-w="false" :shrink="false" proxy />
 
     <!--  手动登录样式  -->
-    <n-flex vertical :size="25" v-if="!login.autoLogin || !TOKEN">
+    <n-flex vertical :size="25" v-if="!login.autoLogin || !TOKEN || !isAutoLogin">
       <!-- 头像 -->
       <n-flex justify="center" class="w-full pt-35px" data-tauri-drag-region>
         <n-avatar
@@ -165,35 +165,30 @@ import apis from '@/services/apis.ts'
 import { useUserStore } from '@/stores/user.ts'
 import { UserInfoType } from '@/services/types.ts'
 import { useSettingStore } from '@/stores/setting.ts'
-import { invoke } from '@tauri-apps/api/core'
 import { AvatarUtils } from '@/utils/AvatarUtils'
 import { useMitt } from '@/hooks/useMitt'
 import { WsResponseMessageType } from '@/services/wsType'
 import { useNetwork } from '@vueuse/core'
-import { computedToken } from '@/services/request'
-import ws from '@/services/webSocket'
-import { useGlobalStore } from '@/stores/global.ts'
 import { useUserStatusStore } from '@/stores/userStatus'
 
 const settingStore = useSettingStore()
 const userStore = useUserStore()
-const globalStore = useGlobalStore()
 const userStatusStore = useUserStatusStore()
 const { stateId } = storeToRefs(userStatusStore)
-const { isTrayMenuShow } = storeToRefs(globalStore)
 /** 网络连接是否正常 */
 const { isOnline } = useNetwork()
 const loginHistoriesStore = useLoginHistoriesStore()
 const { loginHistories } = loginHistoriesStore
 const { login } = storeToRefs(settingStore)
 const TOKEN = ref(localStorage.getItem('TOKEN'))
+const REFRESH_TOKEN = ref(localStorage.getItem('REFRESH_TOKEN'))
 /** 账号信息 */
 const info = ref({
   account: '',
   password: '',
   avatar: '',
   name: '',
-  uid: 0
+  uid: ''
 })
 /** 协议 */
 const protocol = ref(true)
@@ -201,13 +196,15 @@ const loginDisabled = ref(false)
 const loading = ref(false)
 const arrowStatus = ref(false)
 const moreShow = ref(false)
+const isAutoLogin = ref(false)
 const { setLoginState } = useLogin()
 const accountPH = ref('输入HuLa账号')
 const passwordPH = ref('输入HuLa密码')
 /** 登录按钮的文本内容 */
 const loginText = ref('登录')
+/** 是否直接跳转 */
+const isJumpDirectly = ref(false)
 const { createWebviewWindow } = useWindow()
-const route = useRoute()
 
 watchEffect(() => {
   loginDisabled.value = !(info.value.account && info.value.password && protocol.value)
@@ -272,13 +269,40 @@ const normalLogin = async (auto = false) => {
   loading.value = true
   // 根据auto参数决定从哪里获取登录信息
   const loginInfo = auto ? (userStore.userInfo as UserInfoType) : info.value
-  const { account, password } = loginInfo
+  const { account } = loginInfo
+
+  // 自动登录
+  if (auto) {
+    isAutoLogin.value = true
+    loginText.value = '登录中...'
+    // 添加2秒延迟
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+
+    try {
+      // 获取用户详情
+      const userDetail = await apis.getUserDetail()
+      // 设置用户状态id
+      stateId.value = userDetail.userStateId
+      const account = {
+        ...userDetail
+      }
+      userStore.userInfo = account
+      loginHistoriesStore.addLoginHistory(account)
+
+      await setLoginState()
+      await openHomeWindow()
+      loading.value = false
+    } catch (error) {
+      console.error('自动登录失败')
+      localStorage.removeItem('TOKEN')
+      isAutoLogin.value = false
+      loginDisabled.value = true
+    }
+  }
 
   apis
-    .login({ account, password })
+    .login({ account, password: info.value.password, source: 'pc' })
     .then(async (res) => {
-      console.log(res)
-
       loginDisabled.value = true
       loginText.value = '登录成功, 正在跳转'
       userStore.isSign = true
@@ -308,7 +332,6 @@ const normalLogin = async (auto = false) => {
       stateId.value = userDetail.userStateId
       // TODO 先不获取 emoji 列表，当我点击 emoji 按钮的时候再获取
       // await emojiStore.getEmojiList()
-      // TODO 这里的id暂时赋值给uid，因为后端没有统一返回uid，待后端调整
       const account = {
         ...userDetail,
         token: res.token,
@@ -318,17 +341,7 @@ const normalLogin = async (auto = false) => {
       loginHistoriesStore.addLoginHistory(account)
 
       await setLoginState()
-      // rust保存用户信息
-      await invoke('save_user_info', {
-        userId: account.uid,
-        username: account.name,
-        token: account.token,
-        portrait: '',
-        isSign: true
-      }).finally(() => {
-        // 打开主界面
-        openHomeWindow()
-      })
+      await openHomeWindow()
       loading.value = false
     })
     .catch(() => {
@@ -369,30 +382,44 @@ const enterKey = (e: KeyboardEvent) => {
 }
 
 onBeforeMount(async () => {
-  // 如果不是自动登录且当前在登录页面，清除 TOKEN，防止用户直接使用控制台退出导致登录前还没有退出账号就继续登录
-  if (!login.value.autoLogin && route.path === '/login' && TOKEN.value) {
-    await apis.logout()
-    isTrayMenuShow.value = false
-    computedToken.clear()
-    // 重新初始化 WebSocket 连接，此时传入 null 作为 token
-    ws.initConnect()
-    const headers = new Headers()
-    headers.append('Authorization', '')
+  const token = localStorage.getItem('TOKEN')
+  const refreshToken = localStorage.getItem('REFRESH_TOKEN')
+
+  // 只有在非自动登录的情况下才验证token并直接打开主窗口
+  if (token && refreshToken && !login.value.autoLogin) {
+    isJumpDirectly.value = true
+    try {
+      await openHomeWindow()
+      return // 直接返回，不执行后续的登录相关逻辑
+    } catch (error) {
+      isJumpDirectly.value = false
+      // token无效，清除token并重置状态
+      localStorage.removeItem('TOKEN')
+      localStorage.removeItem('REFRESH_TOKEN')
+      userStore.userInfo = {}
+      userStore.isSign = false
+    }
   }
 })
 
 onMounted(async () => {
-  await getCurrentWebviewWindow().show()
+  // 只有在需要登录的情况下才显示登录窗口
+  if (!isJumpDirectly.value) {
+    await getCurrentWebviewWindow().show()
+  }
+
   useMitt.on(WsResponseMessageType.NO_INTERNET, () => {
     loginDisabled.value = true
     loginText.value = '服务异常断开'
   })
+
   // 自动登录
-  if (login.value.autoLogin && TOKEN.value) {
+  if (login.value.autoLogin && TOKEN.value && REFRESH_TOKEN.value) {
     normalLogin(true)
   } else {
     loginHistories.length > 0 && giveAccount(loginHistories[0])
   }
+
   window.addEventListener('click', closeMenu, true)
   window.addEventListener('keyup', enterKey)
 })

@@ -5,7 +5,6 @@ const prefix = VITE_SERVICE_URL
 
 export default {
   // 用户相关
-  searchUsers: `${prefix + URLEnum.USER}/search/users`, // 好友中搜索用户 @author mint
   getBadgeList: `${prefix + URLEnum.USER}/badges`, // 获取徽章列表
   getMemberStatistic: `${prefix + URLEnum.CHAT}/member/statistic`,
   getUserInfoBatch: `${prefix + URLEnum.USER}/summary/userInfo/batch`,
@@ -19,7 +18,7 @@ export default {
   markMsg: `${prefix + URLEnum.CHAT}/msg/mark`, // 消息标记
   blockUser: `${prefix + URLEnum.USER}/black`, // 拉黑用户
   recallMsg: `${prefix + URLEnum.CHAT}/msg/recall`, // 撤回消息
-  fileUpload: `${prefix + URLEnum.OSS}/upload/url`, // 文件上传
+  fileUpload: `${prefix + URLEnum.SYSTEM + URLEnum.OSS}/upload/url`, // 文件上传
   addEmoji: `${prefix + URLEnum.USER}/emoji`, // 增加表情
   deleteEmoji: `${prefix + URLEnum.USER}/emoji`, // 删除表情
   getEmoji: `${prefix + URLEnum.USER}/emoji/list`, // 查询表情包
@@ -61,12 +60,8 @@ export default {
   login: `${prefix + URLEnum.TOKEN}/login`,
   // 续签
   refreshToken: `${prefix + URLEnum.TOKEN}/refreshToken`,
-  // 移动端登录
-  mobileLogin: `${prefix + URLEnum.TOKEN}/mobileLogin`,
   // 退出登录
   logout: `${prefix + URLEnum.TOKEN}/logout`,
   // 检查token是否有效
-  checkToken: `${prefix + URLEnum.TOKEN}/check`,
-  // 下线
-  offline: `${prefix + URLEnum.TOKEN}/offline`
+  checkToken: `${prefix + URLEnum.TOKEN}/check`
 }
