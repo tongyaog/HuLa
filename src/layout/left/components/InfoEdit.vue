@@ -201,9 +201,9 @@ const openAvatarCropper = () => {
 const handleFileChange = (e: Event) => {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (file) {
-    // 添加文件大小限制检查 (500KB = 500 * 1024 bytes)
-    if (file.size > 500 * 1024) {
-      window.$message.error('图片大小不能超过500KB')
+    // 添加文件大小限制检查 (10240KB = 10MB =  10240 * 1024 bytes)
+    if (file.size > 10240 * 1024) {
+      window.$message.error('图片大小不能超过10MB')
       if (fileInput.value) {
         fileInput.value.value = ''
       }

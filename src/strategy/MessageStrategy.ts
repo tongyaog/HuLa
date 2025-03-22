@@ -138,7 +138,7 @@ class TextMessageStrategyImpl extends AbstractMessageStrategy {
 
 /** 处理图片消息 */
 class ImageMessageStrategyImpl extends AbstractMessageStrategy {
-  private readonly MAX_UPLOAD_SIZE = 2 * 1024 * 1024 // 2MB in bytes
+  private readonly MAX_UPLOAD_SIZE = 10 * 1024 * 1024 // 10MB in bytes
   private readonly ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
   constructor() {
@@ -153,7 +153,7 @@ class ImageMessageStrategyImpl extends AbstractMessageStrategy {
 
     // 检查文件大小
     if (file.size > this.MAX_UPLOAD_SIZE) {
-      throw new AppException('图片大小不能超过2MB')
+      throw new AppException('图片大小不能超过10MB')
     }
 
     return file
