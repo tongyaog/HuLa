@@ -3,10 +3,11 @@ import { defineStore } from 'pinia'
 import { useGlobalStore } from '@/stores/global'
 import type { GroupDetailReq, UserItem } from '@/services/types'
 import { pageSize, useChatStore } from './chat'
-import { OnlineEnum, RoleEnum, RoomTypeEnum } from '@/enums'
+import { OnlineEnum, RoleEnum, RoomTypeEnum, StoresEnum } from '@/enums'
 import { uniqueUserList } from '@/utils/Unique.ts'
 import { useCachedStore } from '@/stores/cached'
 import { useUserStore } from '@/stores/user'
+import { OnStatusChangeType } from '@/services/wsType'
 
 /**
  * 用户排序函数
@@ -28,7 +29,7 @@ const sorAction = (pre: UserItem, next: UserItem) => {
   }
 }
 
-export const useGroupStore = defineStore('group', () => {
+export const useGroupStore = defineStore(StoresEnum.GROUP, () => {
   // 初始化需要使用的store
   const cachedStore = useCachedStore()
   const globalStore = useGlobalStore()
@@ -78,11 +79,13 @@ export const useGroupStore = defineStore('group', () => {
       if (adminUidList.value.includes(member.uid)) {
         return {
           ...member,
+          accountCode: member.accountCode,
           roleId: RoleEnum.ADMIN
         }
       } else if (member.uid === currentLordId.value) {
         return {
           ...member,
+          accountCode: member.accountCode,
           roleId: RoleEnum.LORD
         }
       }
@@ -96,6 +99,10 @@ export const useGroupStore = defineStore('group', () => {
     groupName: '',
     onlineNum: 0,
     role: 0,
+    accountCode: '',
+    memberNum: 0,
+    remark: '',
+    myName: '',
     roomId: currentRoomId.value
   })
 
@@ -146,16 +153,13 @@ export const useGroupStore = defineStore('group', () => {
   }
 
   /**
-   * 批量更新用户在线状态
-   * @param items 需要更新状态的用户列表
+   * 更新用户在线状态
+   * @param item 需要更新状态的用户
    */
-  const batchUpdateUserStatus = async (items: UserItem[]) => {
-    for (const curUser of items) {
-      const findIndex = userList.value.findIndex((item) => item.uid === curUser.uid)
-      userList.value[findIndex] = {
-        ...userList.value[findIndex],
-        activeStatus: curUser.activeStatus
-      }
+  const updateUserStatus = async (item: UserItem | OnStatusChangeType['member']) => {
+    const findIndex = userList.value.findIndex((i) => i.uid === item.uid)
+    if (findIndex !== -1) {
+      userList.value[findIndex] = { ...userList.value[findIndex], ...item }
     }
   }
 
@@ -197,7 +201,7 @@ export const useGroupStore = defineStore('group', () => {
   }
 
   /**
-   * 退出群聊
+   * 退出群聊 / 解散群聊
    * @param roomId 要退出的群聊ID
    */
   const exitGroup = async (roomId: string) => {
@@ -224,22 +228,45 @@ export const useGroupStore = defineStore('group', () => {
     }
   }
 
+  /**
+   * 重置群组数据
+   * 用于切换会话时清空当前群组的数据
+   */
+  const resetGroupData = () => {
+    userList.value = []
+    userListOptions.cursor = ''
+    userListOptions.isLast = false
+    userListOptions.loading = false
+    countInfo.value = {
+      avatar: '',
+      groupName: '',
+      onlineNum: 0,
+      role: 0,
+      roomId: '',
+      accountCode: '',
+      memberNum: 0,
+      remark: '',
+      myName: ''
+    }
+  }
+
   return {
     userList,
     userListOptions,
     loadMoreGroupMembers,
     getGroupUserList,
     getCountStatistic,
-    currentLordId,
-    countInfo,
-    batchUpdateUserStatus,
+    updateUserStatus,
     filterUser,
+    currentLordId,
     adminUidList,
     adminList,
     memberList,
     addAdmin,
     revokeAdmin,
     exitGroup,
-    refreshGroupMembers
+    refreshGroupMembers,
+    resetGroupData,
+    countInfo
   }
 })

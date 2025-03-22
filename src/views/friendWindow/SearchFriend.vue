@@ -56,7 +56,7 @@
             <FloatBlockList
               :data-source="searchResults"
               item-key="id"
-              :item-height="68"
+              :item-height="64"
               max-height="calc(100vh - 128px)"
               style-id="search-hover-classes">
               <template #item="{ item }">
@@ -66,21 +66,33 @@
                     <n-flex vertical justify="center" :size="10" class="flex-1">
                       <n-space align="center" :size="10">
                         <span class="text-(14px [--text-color])">{{ item.name }}</span>
-                        <template v-for="id in item.itemIds" :key="id">
-                          <img class="size-20px" :src="useBadgeInfo(id).value.img" alt="" />
+                        <template v-for="accountCode in item.itemIds" :key="accountCode">
+                          <img class="size-20px" :src="useBadgeInfo(accountCode).value.img" alt="" />
                         </template>
                       </n-space>
-                      <span class="text-(12px [--chat-text-color])">{{ `账号：${item.uid}` }}</span>
+                      <n-flex align="center" :size="10">
+                        <span class="text-(12px [--chat-text-color])">{{ `账号：${item.accountCode}` }}</span>
+                        <n-tooltip trigger="hover">
+                          <template #trigger>
+                            <svg
+                              class="size-12px hover:color-#909090 hover:transition-colors"
+                              @click="handleCopy(item.accountCode)">
+                              <use href="#copy"></use>
+                            </svg>
+                          </template>
+                          <span>复制账号</span>
+                        </n-tooltip>
+                      </n-flex>
                     </n-flex>
 
                     <!-- 三种状态的按钮 -->
                     <n-button
                       secondary
-                      :type="getButtonType(item.uid)"
+                      :type="getButtonType(item.uid, item.roomId)"
                       size="small"
                       class="action-button"
                       @click="handleButtonClick(item)">
-                      {{ getButtonText(item.uid) }}
+                      {{ getButtonText(item.uid, item.roomId) }}
                     </n-button>
                   </n-flex>
                 </div>
@@ -125,9 +137,10 @@ import { useCachedStore } from '@/stores/cached'
 import { useBadgeInfo } from '@/hooks/useCached.ts'
 import FloatBlockList from '@/components/common/FloatBlockList.vue'
 import { useContactStore } from '@/stores/contacts'
-import { ContactItem } from '@/services/types'
+import { ContactItem, GroupListReq } from '@/services/types'
 import { useUserStore } from '@/stores/user'
 import { useGlobalStore } from '@/stores/global'
+import apis from '@/services/apis'
 
 const { createWebviewWindow } = useWindow()
 const cachedStore = useCachedStore()
@@ -146,8 +159,8 @@ const searchType = ref<'recommend' | 'user' | 'group'>('recommend')
 // 搜索类型对应的placeholder映射
 const searchPlaceholder = {
   recommend: '输入推荐关键词',
-  user: '输入昵称或账号搜索好友',
-  group: '输入群昵称或群号搜索群聊'
+  user: '输入昵称搜索好友',
+  group: '输入群号搜索群聊'
 }
 // 搜索值
 const searchValue = ref('')
@@ -164,20 +177,24 @@ const initialLoading = ref(true)
 const getCachedUsers = () => {
   // 从缓存中获取所有用户
   const users = Object.values(cachedStore.userCachedList)
+  console.log(users)
 
   // 筛选出需要显示的用户（ID在20016-20030之间的用户）
-  return users
-    .filter((user) => {
-      const uid = user.uid as string
-      return uid >= '20016' && uid <= '20030'
-    })
-    .map((user) => ({
-      id: user.uid,
-      uid: user.uid,
-      name: user.name || `用户${user.uid}`, // 如果没有名称就使用默认名称
-      avatar: user.avatar,
-      itemIds: user.itemIds || null
-    }))
+  return sortSearchResults(
+    users
+      .filter((user) => {
+        const uid = user.uid as string
+        return uid >= '20016' && uid <= '20030'
+      })
+      .map((user) => ({
+        uid: user.uid,
+        accountCode: user.accountCode,
+        name: user.name,
+        avatar: user.avatar,
+        itemIds: user.itemIds || null
+      })),
+    'recommend'
+  )
 }
 
 // 清空搜索结果
@@ -185,6 +202,12 @@ const clearSearchResults = () => {
   searchResults.value = []
   hasSearched.value = false
   searchValue.value = ''
+}
+
+// 处理复制账号
+const handleCopy = (accountCode: string) => {
+  navigator.clipboard.writeText(accountCode)
+  window.$message.success(`复制成功 ${accountCode}`)
 }
 
 // 处理清空按钮点击
@@ -211,24 +234,43 @@ const handleSearch = debounce(async () => {
   hasSearched.value = true
 
   try {
-    // 模拟搜索API调用
-    await new Promise((resolve) => setTimeout(resolve, 800))
-
-    const cachedUsers = getCachedUsers()
-
-    // 根据搜索类型和搜索值过滤结果
-    if (searchType.value === 'user' || searchType.value === 'recommend') {
+    if (searchType.value === 'group') {
+      // 调用群聊搜索接口
+      const res = await apis.searchGroup({ accountCode: searchValue.value })
+      searchResults.value = res.map((group) => ({
+        accountCode: group.accountCode,
+        name: group.name,
+        avatar: group.avatar,
+        deleteStatus: group.deleteStatus,
+        extJson: group.extJson,
+        roomId: group.roomId
+      }))
+    } else if (searchType.value === 'user') {
+      // 调用好友搜索接口
+      const res = await apis.searchFriend({ key: searchValue.value })
+      searchResults.value = res.map((user) => ({
+        uid: user.uid,
+        name: user.name,
+        avatar: user.avatar,
+        accountCode: user.accountCode
+      }))
+    } else {
+      // 推荐标签搜索结果
+      const cachedUsers = getCachedUsers()
       searchResults.value = cachedUsers.filter(
-        (user) => user.name.includes(searchValue.value) || (user.uid && user.uid.toString().includes(searchValue.value))
+        (user) =>
+          user?.name?.includes(searchValue.value) || (user.uid && user.uid.toString().includes(searchValue.value))
       )
-    } else if (searchType.value === 'group') {
-      // 群聊搜索逻辑（示例）
-      searchResults.value = []
     }
+    // 通用排序函数
+    searchResults.value = sortSearchResults(searchResults.value, searchType.value)
+  } catch (error) {
+    window.$message.error('搜索失败')
+    searchResults.value = []
   } finally {
     loading.value = false
   }
-})
+}, 300)
 
 // 处理选项卡切换
 const handleTypeChange = () => {
@@ -239,8 +281,46 @@ const handleTypeChange = () => {
   }
 }
 
+// 判断是否已加入群聊
+const isInGroup = (roomId: string) => {
+  return contactStore.groupChatList.some((group: GroupListReq) => group.roomId === roomId)
+}
+
+// 通用排序函数
+const sortSearchResults = (items: any[], type: 'user' | 'group' | 'recommend') => {
+  if (type === 'group') {
+    // 群聊排序逻辑：已加入的群聊排在前面
+    return items.sort((a, b) => {
+      const aInGroup = isInGroup(a.roomId)
+      const bInGroup = isInGroup(b.roomId)
+      if (aInGroup && !bInGroup) return -1
+      if (!aInGroup && bInGroup) return 1
+      return 0
+    })
+  } else {
+    // 用户排序逻辑：自己排在最前面，好友排在第二位
+    return items.sort((a, b) => {
+      // 处理uid可能是string或number的情况
+      const aUid = String(a.uid)
+      const bUid = String(b.uid)
+
+      // 自己排在最前面
+      if (isCurrentUser(aUid)) return -1
+      if (isCurrentUser(bUid)) return 1
+
+      // 好友排在第二位
+      const aIsFriend = isFriend(aUid)
+      const bIsFriend = isFriend(bUid)
+      if (aIsFriend && !bIsFriend) return -1
+      if (!aIsFriend && bIsFriend) return 1
+
+      return 0
+    })
+  }
+}
+
 // 判断是否已经是好友
-const isFriend = (uid: number | string) => {
+const isFriend = (uid: string) => {
   return contactStore.contactsList.some((contact: ContactItem) => contact.uid === uid)
 }
 
@@ -250,14 +330,24 @@ const isCurrentUser = (uid: string) => {
 }
 
 // 获取按钮文本
-const getButtonText = (uid: string) => {
+const getButtonText = (uid: string, roomId: string) => {
+  // 群聊逻辑
+  if (searchType.value === 'group') {
+    return isInGroup(roomId) ? '发消息' : '添加'
+  }
+  // 用户逻辑
   if (isCurrentUser(uid)) return '编辑资料'
   if (isFriend(uid)) return '发消息'
   return '添加'
 }
 
 // 获取按钮类型
-const getButtonType = (uid: string) => {
+const getButtonType = (uid: string, roomId: string) => {
+  // 群聊逻辑
+  if (searchType.value === 'group') {
+    return isInGroup(roomId) ? 'info' : 'primary'
+  }
+  // 用户逻辑
   if (isCurrentUser(uid)) return 'default'
   if (isFriend(uid)) return 'info'
   return 'primary'
@@ -265,23 +355,37 @@ const getButtonType = (uid: string) => {
 
 // 处理按钮点击
 const handleButtonClick = (item: any) => {
+  if (searchType.value === 'group') {
+    if (isInGroup(item.roomId)) {
+      handleSendGroupMessage(item)
+    } else {
+      handleAddFriend(item)
+    }
+    return
+  }
+
+  // 用户逻辑保持不变
   if (isCurrentUser(item.uid)) {
     handleEditProfile()
   } else if (isFriend(item.uid)) {
     handleSendMessage(item)
   } else {
-    handleAddFriend(item.uid)
+    handleAddFriend(item)
   }
 }
 
 // 处理添加好友或群聊
-const handleAddFriend = async (uid: string) => {
+const handleAddFriend = async (item: any) => {
   if (searchType.value === 'user' || searchType.value === 'recommend') {
     await createWebviewWindow('申请加好友', 'addFriendVerify', 380, 300, '', false, 380, 300)
     globalStore.addFriendModalInfo.show = true
-    globalStore.addFriendModalInfo.uid = uid
+    globalStore.addFriendModalInfo.uid = item.uid
   } else {
-    window.$message.info('加入群聊功能开发中')
+    await createWebviewWindow('申请加群', 'addGroupVerify', 380, 400, '', false, 380, 400)
+    globalStore.addGroupModalInfo.show = true
+    globalStore.addGroupModalInfo.accountCode = item.accountCode
+    globalStore.addGroupModalInfo.name = item.name
+    globalStore.addGroupModalInfo.avatar = item.avatar
   }
 }
 
@@ -303,6 +407,16 @@ const handleSendMessage = async (item: any) => {
   // 激活主窗口
   await homeWindow?.setFocus()
   emitTo('home', 'search_to_msg', { uid: item.uid, roomType: RoomTypeEnum.SINGLE })
+}
+
+// 处理发送群消息
+const handleSendGroupMessage = async (item: any) => {
+  const homeWindow = await WebviewWindow.getByLabel('home')
+  await homeWindow?.setFocus()
+  emitTo('home', 'search_to_msg', {
+    uid: item.roomId,
+    roomType: RoomTypeEnum.GROUP
+  })
 }
 
 onMounted(async () => {

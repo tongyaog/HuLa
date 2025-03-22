@@ -12,7 +12,8 @@ import {
   RoomTypeEnum,
   SexEnum,
   MessageStatusEnum,
-  SessionOperateEnum
+  SessionOperateEnum,
+  NotificationTypeEnum
 } from '@/enums'
 
 /**响应请求体*/
@@ -59,6 +60,8 @@ export type RegisterUserReq = {
 export type ListResponse<T> = {
   /** 游标（下次翻页带上这参数）*/
   cursor: string
+  /** 当前页数 */
+  pageNo?: number
   /** 是否最后一页 */
   isLast: boolean
   list: T[]
@@ -82,6 +85,14 @@ export type GroupDetailReq = {
   role: number
   /** 房间id */
   roomId: string
+  /** 群号 */
+  accountCode: string
+  /** 群成员数 */
+  memberNum: number
+  /** 群备注 */
+  remark: string
+  /** 我的群昵称 */
+  myName: string
 }
 
 export type GroupListReq = {
@@ -136,6 +147,8 @@ export type CacheUserItem = {
   uid: string
   /** 用户状态 */
   userStateId: string
+  /** 账号 */
+  accountCode: string
 }
 
 export type UserItem = {
@@ -153,6 +166,8 @@ export type UserItem = {
   locPlace?: string
   /** 角色ID */
   roleId?: number
+  /** 账号 */
+  accountCode: string
 }
 
 export type GroupStatisticType = {
@@ -431,6 +446,10 @@ export type RequestFriendItem = {
   type: number
   /** 申请人uid */
   uid: string
+  /** 被申请人id */
+  targetId: string
+  /** 申请时间 */
+  createTime: number
   /** 会话 ID */
   roomId: string
 }
@@ -477,6 +496,12 @@ export type SessionItem = {
   operate: SessionOperateEnum
   /** 在线状态 1在线 2离线 */
   activeStatus?: OnlineEnum
+  /** 隐藏会话 */
+  hide: boolean
+  /** 免打扰类型 */
+  muteNotification: NotificationTypeEnum
+  /** 屏蔽消息 */
+  shield: boolean
 }
 
 /** 消息已读未读数列表项 */
@@ -499,6 +524,56 @@ export type AIModel = {
   name: string
   value: string
   avatar: string
+}
+
+/** 登录 */
+export type Login = {
+  /** token */
+  token: string
+  /** 刷新token */
+  refreshToken: string
+  /** 客户端 */
+  client: string
+}
+
+/** 用户状态 */
+export type UserState = {
+  /** id */
+  id: string
+  /** 标题 */
+  title: string
+  /** 链接 */
+  url: string
+  /** 背景颜色 */
+  bgColor?: string
+}
+
+/** 搜索好友 */
+export type SearchFriend = {
+  /** 用户ID */
+  uid: string
+  /** 用户名 */
+  name: string
+  /** 头像 */
+  avatar: string
+  /** 账号 */
+  accountCode: string
+}
+
+/** 搜索群 */
+export type SearchGroup = {
+  /** 群ID */
+  roomId: string
+  /** 群名称 */
+  name: string
+  /** 头像 */
+  avatar: string
+  /** 账号 */
+  accountCode: string
+  /** 额外信息 */
+  extJson: string
+  /** 是否删除 */
+  deleteStatus: IsYesEnum
 }
 
 /* ======================================================== */

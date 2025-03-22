@@ -28,16 +28,36 @@
               -webkit-backdrop-filter: blur(10px);
               box-shadow: 2px 2px 12px 2px var(--box-shadow-color);
               border: 1px solid var(--box-shadow-color);
+              width: auto;
             ">
             <template #trigger>
-              <n-popover trigger="hover" :show-arrow="false" placement="bottom">
+              <n-popover
+                v-model:show="recentlyTip"
+                trigger="hover"
+                :delay="800"
+                :duration="100"
+                :show-arrow="false"
+                :disabled="emojiShow || recentEmojis.length < 4"
+                placement="top">
                 <template #trigger>
                   <svg class="mr-18px"><use href="#smiling-face"></use></svg>
                 </template>
-                <span>表情</span>
+                <div v-if="recentEmojis.length > 0" class="p-4px">
+                  <div class="text-xs text-gray-500 mb-4px">最近使用</div>
+                  <div class="flex flex-wrap gap-8px max-w-212px">
+                    <div
+                      v-for="(emoji, index) in recentEmojis"
+                      :key="index"
+                      class="emoji-item cursor-pointer flex-center"
+                      @click="emojiHandle(emoji, checkIsUrl(emoji) ? 'emoji-url' : 'emoji')">
+                      <img v-if="checkIsUrl(emoji)" :src="emoji" class="size-24px" />
+                      <span v-else class="text-18px">{{ emoji }}</span>
+                    </div>
+                  </div>
+                </div>
               </n-popover>
             </template>
-            <Emoji @emojiHandle="emojiHandle" :all="false" />
+            <Emoticon @emojiHandle="emojiHandle" :all="false" />
           </n-popover>
 
           <n-popover trigger="hover" :show-arrow="false" placement="bottom">
@@ -109,17 +129,36 @@ import { emitTo } from '@tauri-apps/api/event'
 import { useGlobalStore } from '@/stores/global.ts'
 import type { ContactItem, SessionItem } from '@/services/types'
 import { useContactStore } from '@/stores/contacts'
+import { useHistoryStore } from '@/stores/history'
 
 const { id } = defineProps<{
   id: SessionItem['id']
 }>()
 const globalStore = useGlobalStore()
 const contactStore = useContactStore()
+const historyStore = useHistoryStore()
 const { open, onChange, reset } = useFileDialog()
 const MsgInputRef = ref()
 const msgInputDom = ref<HTMLInputElement | null>(null)
-const emojiShow = ref()
+const emojiShow = ref(false)
+const recentlyTip = ref(false)
+const recentEmojis = computed(() => {
+  return historyStore.emoji.slice(0, 15)
+})
 const { insertNodeAtRange, triggerInputEvent, imgPaste, FileOrVideoPaste } = useCommon()
+
+/**
+ * 检查字符串是否为URL
+ */
+const checkIsUrl = (str: string) => {
+  try {
+    new URL(str)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // 判断是否为单聊
 const isSingleChat = computed(() => {
   return globalStore.currentSession?.type === RoomTypeEnum.SINGLE
@@ -131,18 +170,26 @@ const isFriend = computed(() => {
   return contactStore.contactsList.some((contact: ContactItem) => contact.uid === id)
 })
 
+// 监听emojiShow的变化，当emojiShow为true时关闭recentlyTip
+watch(emojiShow, (newValue) => {
+  if (newValue === true) {
+    recentlyTip.value = false
+  }
+})
+
 /**
  * 选择表情，并把表情插入输入框
  * @param item 选择的表情
+ * @param type 表情类型，'emoji' 为普通表情，'emoji-url' 为表情包URL
  */
-const emojiHandle = (item: string) => {
+const emojiHandle = (item: string, type: 'emoji' | 'emoji-url' = 'emoji') => {
   emojiShow.value = false
 
   const inp = msgInputDom.value
   if (!inp) return
 
   // 确保输入框有焦点
-  inp.focus()
+  MsgInputRef.value?.focus()
 
   // 检查是否为 URL
   const isUrl = (str: string) => {
@@ -191,7 +238,8 @@ const emojiHandle = (item: string) => {
     imgElement.src = item
     imgElement.style.maxWidth = '80px'
     imgElement.style.maxHeight = '80px'
-    imgElement.dataset.type = 'emoji'
+    // 设置数据类型，区分是普通图片还是表情包
+    imgElement.dataset.type = type === 'emoji-url' ? 'emoji' : 'image'
     lastEditRange.range.insertNode(imgElement)
 
     // 移动光标到图片后面
@@ -206,13 +254,30 @@ const emojiHandle = (item: string) => {
   }
 
   // 记录新的选区位置
-  MsgInputRef.value?.recordSelectionRange()
+  MsgInputRef.value?.updateSelectionRange()
 
   // 触发输入事件
   triggerInputEvent(inp)
 
   // 保持焦点在输入框
-  inp.focus()
+  MsgInputRef.value?.focus()
+
+  // 添加到最近使用表情列表
+  updateRecentEmojis(item)
+}
+
+/**
+ * 更新最近使用的表情列表
+ */
+const updateRecentEmojis = (emoji: string) => {
+  const currentEmojis = [...historyStore.emoji]
+  const index = currentEmojis.indexOf(emoji)
+  if (index !== -1) {
+    currentEmojis.splice(index, 1)
+  }
+  currentEmojis.unshift(emoji)
+  const updatedEmojis = currentEmojis.slice(0, 15)
+  historyStore.setEmoji(updatedEmojis)
 }
 
 const handleCap = async () => {
@@ -248,7 +313,7 @@ onChange((files) => {
   reset()
 })
 
-onMounted(() => {
+onMounted(async () => {
   if (MsgInputRef.value) {
     msgInputDom.value = MsgInputRef.value.messageInputDom
   }

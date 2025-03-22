@@ -8,19 +8,17 @@
         style="outline: none"
         contenteditable
         spellcheck="false"
-        @paste="handlePaste($event, messageInputDom)"
+        @paste="onPaste($event)"
         @input="handleInput"
         @keydown.exact.enter="inputKeyDown"
         @keydown.exact.meta.enter="inputKeyDown"
-        @keydown.exact="recordSelectionRange"
-        @click="recordSelectionRange"
-        @keydown.exact.ctrl.enter="inputKeyDown"></div>
-      <span
-        v-if="isEntering"
-        @click.stop="messageInputDom.focus()"
-        class="absolute select-none top-8px left-6px w-fit text-(12px #777)">
-        输入 / 唤起 AI 助手
-      </span>
+        @keydown="updateSelectionRange"
+        @keyup="updateSelectionRange"
+        @click="updateSelectionRange"
+        @compositionend="updateSelectionRange"
+        @keydown.exact.ctrl.enter="inputKeyDown"
+        data-placeholder="输入 / 唤起 AI 助手"
+        class="empty:before:content-[attr(data-placeholder)] before:text-(12px #777)"></div>
     </n-scrollbar>
   </ContextMenu>
 
@@ -157,7 +155,7 @@ import { useSettingStore } from '@/stores/setting.ts'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { sendOptions } from '@/views/moreWindow/settings/config.ts'
 import { useMsgInput } from '@/hooks/useMsgInput.ts'
-import { SelectionRange, useCommon } from '@/hooks/useCommon.ts'
+import { useCommon } from '@/hooks/useCommon.ts'
 import { onKeyStroke } from '@vueuse/core'
 import { type } from '@tauri-apps/plugin-os'
 import { useUserInfo } from '@/hooks/useCached.ts'
@@ -172,27 +170,23 @@ const { themes } = storeToRefs(settingStore)
 /** 发送按钮旁的箭头 */
 const arrow = ref(false)
 /** 输入框dom元素 */
-const messageInputDom = ref()
+const messageInputDom = ref<HTMLElement>()
 const activeItem = ref(inject('activeItem') as SessionItem)
 /** ait 虚拟列表 */
 const virtualListInstAit = useTemplateRef<VirtualListInst>('virtualListInst-ait')
 /** AI 虚拟列表 */
 const virtualListInstAI = useTemplateRef<VirtualListInst>('virtualListInst-AI')
-/** 是否处于输入状态 */
-const isEntering = computed(() => {
-  return msgInput.value === ''
-})
-const { handlePaste, getEditorRange } = useCommon()
+
+const { handlePaste } = useCommon()
+
+const onPaste = (e: ClipboardEvent) => {
+  if (messageInputDom.value) handlePaste(e, messageInputDom.value)
+}
 
 /**
  * 记录编辑器最后选取范围
  */
-let lastEditRange: SelectionRange | null = null
-
-/**
- * 记录当前编辑器的选取范围
- */
-const recordSelectionRange = () => (lastEditRange = getEditorRange())
+// let currentSelectionRange: SelectionRange | null = null
 
 /** 引入useMsgInput的相关方法 */
 const {
@@ -206,11 +200,13 @@ const {
   ait,
   aiDialogVisible,
   selectedAIKey,
-  msgInput,
   chatKey,
   menuList,
   selectedAitKey,
-  groupedAIModels
+  groupedAIModels,
+  getCursorSelectionRange,
+  updateSelectionRange,
+  focusOn
 } = useMsgInput(messageInputDom)
 
 /** 当切换聊天对象时，重新获取焦点 */
@@ -314,8 +310,16 @@ onUnmounted(() => {
   window.removeEventListener('click', closeMenu, true)
 })
 
+/**
+ * 恢复编辑器焦点
+ */
+function focus() {
+  const editor = messageInputDom.value
+  if (editor) focusOn(editor)
+}
+
 /** 导出组件方法和属性 */
-defineExpose({ messageInputDom, getLastEditRange: () => lastEditRange, recordSelectionRange })
+defineExpose({ messageInputDom, getLastEditRange: () => getCursorSelectionRange(), updateSelectionRange, focus })
 </script>
 
 <style scoped lang="scss">

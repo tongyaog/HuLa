@@ -310,7 +310,7 @@ const handleResize = async (e: Event) => {
   let newMenuHeight = menuDivHeight + spaceHeight
   let headerTopHeight = 120
   let bottomPadding = 15
-  let randomHeigth = 3 // 插件菜单的高度比其他菜单高2.66666666667
+  let randomHeight = 3 // 插件菜单的高度比其他菜单高2.66666666667
   let staticMenuNum = 2
   const menuNum = Math.floor(
     (windowHeight -
@@ -318,7 +318,7 @@ const handleResize = async (e: Event) => {
       (menuTop.length + noMiniShowPlugins.value.length + itemsBottom.length + staticMenuNum - 1) * spaceHeight -
       headerTopHeight -
       bottomPadding -
-      randomHeigth) /
+      randomHeight) /
       newMenuHeight
   )
   if (menuNum < 0) {

@@ -4,11 +4,12 @@ import { useGlobalStore } from '@/stores/global'
 import type { CacheBadgeItem, CacheUserItem } from '@/services/types'
 import { isDiffNow10Min } from '@/utils/ComputedTime.ts'
 import { useDebounceFn } from '@vueuse/core'
+import { StoresEnum } from '@/enums'
 
 // 定义基础用户信息类型，只包含uid、头像和名称
-export type BaseUserItem = Pick<CacheUserItem, 'uid' | 'avatar' | 'name'>
+export type BaseUserItem = Pick<CacheUserItem, 'uid' | 'avatar' | 'name' | 'accountCode'>
 
-export const useCachedStore = defineStore('cached', () => {
+export const useCachedStore = defineStore(StoresEnum.CACHED, () => {
   const globalStore = useGlobalStore()
   // 用户信息缓存列表，key为用户ID
   const userCachedList = reactive<Record<string, Partial<CacheUserItem>>>({})
@@ -33,7 +34,8 @@ export const useCachedStore = defineStore('cached', () => {
         return Object.values(userCachedList).map((user) => ({
           uid: user.uid,
           avatar: user.avatar,
-          name: user.name
+          name: user.name,
+          accountCode: user.accountCode
         })) as BaseUserItem[]
       }
       return atUsersMap[currentRoomId.value]
@@ -78,7 +80,8 @@ export const useCachedStore = defineStore('cached', () => {
       for (const item of data || []) {
         // 更新用户信息缓存
         userCachedList[item.uid] = {
-          ...(item?.needRefresh ? item : userCachedList[item.uid]),
+          ...userCachedList[item.uid], // 保留旧数据
+          ...item, // 用新数据覆盖
           needRefresh: undefined,
           lastModifyTime: Date.now()
         }
@@ -176,6 +179,7 @@ export const useCachedStore = defineStore('cached', () => {
         ...userCachedList[uid],
         userStateId,
         // 强制更新
+        accountCode: userCachedList[uid].accountCode,
         needRefresh: true,
         // 重置最后更新时间，确保能重新获取数据
         lastModifyTime: 0
@@ -184,6 +188,15 @@ export const useCachedStore = defineStore('cached', () => {
 
     // 重新获取该用户的详细信息
     await getBatchUserInfo([uid])
+  }
+
+  const userAvatarUpdated = ref(false)
+
+  const updateUserCache = (userInfo: CacheUserItem) => {
+    // 更新缓存
+    userCachedList[userInfo.uid] = userInfo
+    // 标记头像已更新，触发相关组件重新渲染
+    userAvatarUpdated.value = !userAvatarUpdated.value
   }
 
   return {
@@ -195,6 +208,8 @@ export const useCachedStore = defineStore('cached', () => {
     getGroupAtUserBaseInfo,
     currentAtUsersList,
     filterUsersByUidList,
-    updateUserState
+    updateUserState,
+    userAvatarUpdated,
+    updateUserCache
   }
 })

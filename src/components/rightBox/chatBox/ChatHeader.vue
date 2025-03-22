@@ -7,7 +7,7 @@
       <Transition name="loading" mode="out-in">
         <img v-if="showLoading" class="size-22px py-3px" src="@/assets/img/loading.svg" alt="" />
         <n-flex v-else align="center">
-          <n-avatar class="rounded-8px select-none" :size="28" :src="AvatarUtils.getAvatarUrl(activeItem.avatar)" />
+          <n-avatar class="rounded-8px select-none" :size="28" :src="currentUserAvatar" />
           <p class="text-(16px [--text-color])">{{ activeItem.name }}</p>
           <svg
             v-if="activeItem.hotFlag === IsAllUserEnum.Yes && !showLoading"
@@ -93,96 +93,183 @@
     <!-- 侧边选项栏 -->
     <Transition v-if="shouldShowDeleteFriend || chatStore.isGroup" name="sidebar">
       <div v-if="sidebarShow" style="border: 1px solid rgba(90, 90, 90, 0.1)" class="sidebar">
-        <!-- 单聊侧边栏选项 -->
-        <template v-if="!chatStore.isGroup">
-          <div class="box-item flex-col-y-center">
-            <div class="flex-between-center">
-              <p>设为置顶</p>
-              <n-switch size="small" />
+        <n-scrollbar style="height: calc(100vh - 50px)" class="p-22px box-border">
+          <!-- 单聊侧边栏选项 -->
+          <template v-if="!chatStore.isGroup">
+            <div class="box-item flex-col-y-center">
+              <div class="flex-between-center">
+                <p>设为置顶</p>
+                <n-switch size="small" :value="activeItem.top" @update:value="handleTop" />
+              </div>
+              <div class="h-1px bg-[--setting-item-line] m-[10px_0]"></div>
+              <div class="flex-between-center">
+                <p>消息免打扰</p>
+                <n-switch
+                  size="small"
+                  :value="activeItem.muteNotification === NotificationTypeEnum.NOT_DISTURB"
+                  @update:value="handleNotification" />
+              </div>
             </div>
-            <div class="h-1px bg-[--setting-item-line] m-[10px_0]"></div>
-            <div class="flex-between-center">
-              <p>消息免打扰</p>
-              <n-switch size="small" />
+
+            <div class="box-item">
+              <div class="flex-between-center">
+                <p>屏蔽此人</p>
+                <n-switch size="small" :value="activeItem.shield" @update:value="handleShield" />
+              </div>
             </div>
-          </div>
 
-          <div class="box-item">
-            <div class="flex-between-center">
-              <p>屏蔽此人</p>
-              <n-switch size="small" />
+            <div class="box-item cursor-pointer" @click="handleDelete(RoomActEnum.DELETE_RECORD)">
+              <p>删除聊天记录</p>
             </div>
-          </div>
 
-          <div class="box-item cursor-pointer" @click="handleDelete(RoomActEnum.DELETE_RECORD)">
-            <p>删除聊天记录</p>
-          </div>
+            <div class="box-item flex-x-center cursor-pointer" @click="handleDelete(RoomActEnum.DELETE_FRIEND)">
+              <p class="color-#d03553">删除好友</p>
+            </div>
 
-          <div class="box-item flex-x-center cursor-pointer" @click="handleDelete(RoomActEnum.DELETE_FRIEND)">
-            <p class="color-#d03553">删除好友</p>
-          </div>
+            <p class="m-[0_auto] text-(12px #13987f center) mt-20px cursor-pointer">被骚扰了?&nbsp;&nbsp;举报该用户</p>
+          </template>
 
-          <p class="m-[0_auto] text-(12px #13987f) mt-20px cursor-pointer">被骚扰了?&nbsp;&nbsp;举报该用户</p>
-        </template>
+          <!-- 群聊侧边栏选项 -->
+          <template v-else>
+            <div class="box-item cursor-default">
+              <n-flex align="center" :size="10">
+                <!-- 群头像 -->
+                <div class="relative group">
+                  <!-- 群主可以编辑头像，显示黑色蒙层和上传图标 -->
+                  <div v-if="isGroupOwner" class="avatar-wrapper relative" @click="handleUploadAvatar">
+                    <n-avatar round :size="40" :src="AvatarUtils.getAvatarUrl(activeItem.avatar)" />
+                    <div class="avatar-hover absolute size-full rounded-50% flex-center">
+                      <svg class="size-14px color-#fefefe"><use href="#Export"></use></svg>
+                    </div>
+                  </div>
 
-        <!-- 群聊侧边栏选项 -->
-        <template v-else>
-          <div class="box-item cursor-default">
-            <n-flex align="center" :size="10">
-              <n-avatar round :size="40" :src="AvatarUtils.getAvatarUrl(activeItem.avatar)" />
+                  <n-avatar v-else round :size="40" :src="AvatarUtils.getAvatarUrl(activeItem.avatar)" />
+                </div>
 
-              <p class="text-(14px --text-color)">{{ activeItem.name }}</p>
+                <!-- 群名称 -->
+                <n-flex :size="10" align="center">
+                  <div v-if="isGroupOwner && isEditingGroupName" class="flex-1">
+                    <n-input
+                      ref="groupNameInputRef"
+                      v-model:value="editingGroupName"
+                      @blur="saveGroupName"
+                      @keydown.enter="saveGroupName"
+                      size="small"
+                      maxlength="12"
+                      class="border-(solid 1px [--line-color])"
+                      placeholder="请输入群名称(最多12字)" />
+                  </div>
+                  <div
+                    v-else
+                    class="text-(14px --text-color) cursor-default"
+                    :class="{ 'cursor-pointer': isGroupOwner }"
+                    @click="isGroupOwner && startEditGroupName()">
+                    {{ activeItem.name }}
+                    <!-- 显示编辑图标 -->
+                    <svg v-if="isGroupOwner" class="size-14px ml-1 inline-block color-[--icon-color]">
+                      <use href="#edit"></use>
+                    </svg>
+                  </div>
+                </n-flex>
 
-              <n-popover trigger="hover" v-if="activeItem.hotFlag === IsAllUserEnum.Yes">
-                <template #trigger>
-                  <svg class="size-20px select-none outline-none cursor-pointer color-#13987f">
-                    <use href="#auth"></use>
-                  </svg>
-                </template>
-                <span>官方群聊认证</span>
-              </n-popover>
-            </n-flex>
-          </div>
-
-          <!-- 群聊成员列表 -->
-          <div class="box-item cursor-default">
-            <n-flex vertical justify="center" :size="16">
-              <p class="text-(14px --text-color)">
-                {{ activeItem.hotFlag !== IsAllUserEnum.Yes ? '群成员' : '频道成员' }}
-              </p>
-
-              <n-flex align="center" justify="start" :size="[24, 20]">
-                <template v-for="(item, _index) in userList" :key="_index">
-                  <n-flex vertical justify="center" align="center" :size="10">
-                    <n-avatar round :size="30" :src="AvatarUtils.getAvatarUrl(item.avatar)" />
-
-                    <p class="text-(10px --text-color center) w-30px truncate">{{ item.name }}</p>
-                  </n-flex>
-                </template>
+                <n-popover trigger="hover" v-if="activeItem.hotFlag === IsAllUserEnum.Yes">
+                  <template #trigger>
+                    <svg class="size-20px select-none outline-none cursor-pointer color-#13987f">
+                      <use href="#auth"></use>
+                    </svg>
+                  </template>
+                  <span>官方群聊认证</span>
+                </n-popover>
               </n-flex>
-            </n-flex>
-          </div>
+            </div>
 
-          <div
-            v-if="activeItem.hotFlag !== IsAllUserEnum.Yes"
-            class="box-item cursor-pointer"
-            @click="handleDelete(RoomActEnum.DELETE_RECORD)">
-            <p>删除聊天记录</p>
-          </div>
+            <!-- 群聊成员列表 -->
+            <div class="box-item cursor-default">
+              <n-flex vertical justify="center" :size="16">
+                <p class="text-(14px --text-color)">
+                  {{ activeItem.hotFlag !== IsAllUserEnum.Yes ? '群成员' : '频道成员' }}
+                </p>
 
-          <div
-            v-if="activeItem.hotFlag !== IsAllUserEnum.Yes"
-            class="box-item flex-x-center cursor-pointer"
-            @click="handleDelete(RoomActEnum.EXIT_GROUP)">
-            <p class="color-#d03553">退出群聊</p>
-          </div>
+                <n-flex align="center" justify="start" :size="[24, 20]">
+                  <template v-for="(item, _index) in userList" :key="_index">
+                    <n-flex vertical justify="center" align="center" :size="10">
+                      <n-avatar round :size="30" :src="AvatarUtils.getAvatarUrl(item.avatar)" />
 
-          <p
-            v-if="activeItem.hotFlag !== IsAllUserEnum.Yes"
-            class="m-[0_auto] text-(12px #13987f) mt-20px cursor-pointer">
-            被骚扰了?&nbsp;&nbsp;举报该群
-          </p>
-        </template>
+                      <p class="text-(10px --text-color center) w-30px truncate">{{ item.name }}</p>
+                    </n-flex>
+                  </template>
+                </n-flex>
+              </n-flex>
+            </div>
+
+            <!-- 我本群的昵称 -->
+            <p class="text-(12px #909090) mt-20px mb-10px">我本群的昵称</p>
+            <n-input
+              class="border-(solid 1px [--line-color]) custom-shadow"
+              v-model="groupDetail.myNickname"
+              @update:value="updateGroupInfo($event, 'nickname')" />
+            <!-- 群备注 -->
+            <p class="text-(12px #909090) mt-20px mb-10px">群备注</p>
+            <n-input
+              class="border-(solid 1px [--line-color]) custom-shadow"
+              v-model="groupDetail.groupRemark"
+              @update:value="updateGroupInfo($event, 'remark')" />
+
+            <!-- 群设置选项 -->
+            <div class="box-item cursor-default">
+              <n-flex vertical justify="center" :size="4">
+                <p class="text-(12px #909090) pb-14px">群设置</p>
+
+                <div class="flex-between-center">
+                  <p>设为置顶</p>
+                  <n-switch size="small" :value="activeItem.top" @update:value="handleTop" />
+                </div>
+
+                <div class="h-1px bg-[--setting-item-line] m-[10px_0]"></div>
+
+                <div class="flex-between-center">
+                  <p>消息免打扰</p>
+                  <n-switch
+                    size="small"
+                    :value="activeItem.muteNotification === NotificationTypeEnum.NOT_DISTURB"
+                    @update:value="handleNotification" />
+                </div>
+
+                <div class="h-1px bg-[--setting-item-line] m-[10px_0]"></div>
+
+                <div class="flex-between-center">
+                  <p>屏蔽群消息</p>
+                  <n-switch size="small" :value="activeItem.shield" @update:value="handleShield" />
+                </div>
+              </n-flex>
+            </div>
+
+            <div class="box-item cursor-pointer mb-20px" @click="handleDelete(RoomActEnum.DELETE_RECORD)">
+              <p>删除聊天记录</p>
+            </div>
+
+            <div
+              v-if="activeItem.hotFlag !== IsAllUserEnum.Yes"
+              class="box-item flex-x-center cursor-pointer mb-20px"
+              @click="
+                handleDelete(
+                  activeItem.operate === SessionOperateEnum.DISSOLUTION_GROUP
+                    ? RoomActEnum.DISSOLUTION_GROUP
+                    : RoomActEnum.EXIT_GROUP
+                )
+              ">
+              <p class="color-#d03553">
+                {{ activeItem.operate === SessionOperateEnum.DISSOLUTION_GROUP ? '解散群聊' : '退出群聊' }}
+              </p>
+            </div>
+
+            <p
+              v-if="activeItem.hotFlag !== IsAllUserEnum.Yes"
+              class="text-(12px #13987f center) my-20px cursor-pointer">
+              被骚扰了?&nbsp;&nbsp;举报该群
+            </p>
+          </template>
+        </n-scrollbar>
       </div>
     </Transition>
   </main>
@@ -212,12 +299,21 @@
       </div>
     </div>
   </n-modal>
+
+  <!-- 添加裁剪组件和文件输入框 -->
+  <input
+    ref="fileInput"
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    class="hidden"
+    @change="handleFileChange" />
+  <AvatarCropper ref="cropperRef" v-model:show="showCropper" :image-url="localImageUrl" @crop="handleCrop" />
 </template>
 
 <script setup lang="ts">
 import { IsAllUserEnum, SessionItem, UserItem } from '@/services/types.ts'
 import { useDisplayMedia } from '@vueuse/core'
-import { EventEnum, MittEnum, RoomActEnum } from '@/enums'
+import { EventEnum, MittEnum, RoomActEnum, NotificationTypeEnum } from '@/enums'
 import { emit } from '@tauri-apps/api/event'
 import { type } from '@tauri-apps/plugin-os'
 import { useChatStore } from '@/stores/chat.ts'
@@ -228,9 +324,12 @@ import { AvatarUtils } from '@/utils/AvatarUtils'
 import { OnlineEnum } from '@/enums'
 import { useTauriListener } from '@/hooks/useTauriListener'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { RoomTypeEnum } from '@/enums'
+import { RoomTypeEnum, SessionOperateEnum } from '@/enums'
 import { useMitt } from '@/hooks/useMitt.ts'
 import { useUserStatusStore } from '@/stores/userStatus'
+import apis from '@/services/apis'
+import AvatarCropper from '@/components/common/AvatarCropper.vue'
+import { useAvatarUpload } from '@/hooks/useAvatarUpload'
 
 const appWindow = WebviewWindow.getCurrent()
 const { activeItem } = defineProps<{
@@ -250,6 +349,32 @@ const modalShow = ref(false)
 const sidebarShow = ref(false)
 const showLoading = ref(true)
 const isLoading = ref(false)
+// 群组详情数据
+const groupDetail = ref({
+  myNickname: '', // 我在本群的昵称
+  groupRemark: '', // 群备注
+  role: 3 // 默认为普通成员
+})
+// 保存原始群组详情数据，用于比较是否有变化
+const originalGroupDetail = ref({
+  myNickname: '',
+  groupRemark: ''
+})
+// 是否为群主
+const isGroupOwner = computed(() => groupDetail.value.role === 1)
+// 是否正在编辑群名称
+const isEditingGroupName = ref(false)
+// 编辑中的群名称
+const editingGroupName = ref('')
+// 群名称输入框引用
+const groupNameInputRef = useTemplateRef('groupNameInputRef')
+// 创建一个RTCPeerConnection实例
+let peerConnection: RTCPeerConnection
+if (type() !== 'linux') {
+  peerConnection = new RTCPeerConnection()
+}
+
+const MIN_LOADING_TIME = 300 // 最小加载时间（毫秒）
 /** 是否在线 */
 const isOnline = computed(() => {
   if (activeItem.type === RoomTypeEnum.GROUP) return false
@@ -282,14 +407,30 @@ const userList = computed(() => {
     })
     .slice(0, 10)
 })
-
-// 创建一个RTCPeerConnection实例
-let peerConnection: RTCPeerConnection
-if (type() !== 'linux') {
-  peerConnection = new RTCPeerConnection()
-}
-
-const MIN_LOADING_TIME = 300 // 最小加载时间（毫秒）
+// 使用自定义hook处理头像上传
+const {
+  fileInput,
+  localImageUrl,
+  showCropper,
+  cropperRef,
+  openFileSelector,
+  handleFileChange,
+  handleCrop: onCrop
+} = useAvatarUpload({
+  onSuccess: async (downloadUrl) => {
+    // 调用更新群头像的API
+    await apis.updateRoomInfo({
+      id: activeItem.roomId,
+      name: activeItem.name,
+      avatar: downloadUrl
+    })
+    // 更新本地会话状态
+    chatStore.updateSession(activeItem.roomId, {
+      avatar: downloadUrl
+    })
+    window.$message.success('群头像已更新')
+  }
+})
 
 // 在数据加载完成后，确保loading动画至少显示一定时间
 const handleLoadingState = async (isDataLoading: boolean) => {
@@ -318,6 +459,10 @@ watch(
       isLoading.value = true
       showLoading.value = true
     }
+    // 当roomId变化时，如果是群聊，则获取群组详情
+    if (activeItem.type === RoomTypeEnum.GROUP) {
+      fetchGroupDetail()
+    }
   }
 )
 
@@ -329,6 +474,69 @@ watchEffect(() => {
     })
   }
 })
+
+// 获取群组详情
+const fetchGroupDetail = async () => {
+  if (!activeItem.roomId || activeItem.type !== RoomTypeEnum.GROUP) return
+
+  const response = await apis.groupDetail({ id: activeItem.roomId })
+  if (response) {
+    groupDetail.value = {
+      myNickname: response.myName || '',
+      groupRemark: response.remark || '',
+      role: response.role || 3 // 添加角色信息
+    }
+    // 保存原始值，用于后续比较
+    originalGroupDetail.value = {
+      myNickname: response.myName || '',
+      groupRemark: response.remark || ''
+    }
+  }
+}
+
+// 更新群聊信息（昵称或备注）
+const updateGroupInfo = (value: string, type: 'nickname' | 'remark') => {
+  if (!activeItem.roomId || activeItem.type !== RoomTypeEnum.GROUP) return
+
+  // 只更新本地值，不发送API请求
+  if (type === 'nickname') {
+    groupDetail.value.myNickname = value
+  } else {
+    groupDetail.value.groupRemark = value
+  }
+}
+
+// 保存群聊信息
+const saveGroupInfo = async () => {
+  if (!activeItem.roomId || activeItem.type !== RoomTypeEnum.GROUP) return
+
+  // 检查数据是否发生变化
+  const nicknameChanged = groupDetail.value.myNickname !== originalGroupDetail.value.myNickname
+  const remarkChanged = groupDetail.value.groupRemark !== originalGroupDetail.value.groupRemark
+
+  // 只有当数据发生变化时才发送请求
+  if (nicknameChanged || remarkChanged) {
+    try {
+      // 使用updateMyRoomInfo接口更新我在群里的昵称和群备注
+      await apis.updateMyRoomInfo({
+        id: activeItem.roomId,
+        myName: groupDetail.value.myNickname,
+        remark: groupDetail.value.groupRemark
+      })
+
+      // 更新原始值为当前值
+      originalGroupDetail.value = {
+        myNickname: groupDetail.value.myNickname,
+        groupRemark: groupDetail.value.groupRemark
+      }
+
+      window.$message.success('群聊信息已更新')
+    } catch (error) {
+      window.$message.error('群聊信息更新失败')
+      console.error('更新群聊信息失败:', error)
+    }
+  }
+}
 
 const handleMedia = () => {
   start().then(() => {
@@ -354,12 +562,83 @@ const handleMedia = () => {
   })
 }
 
+/** 置顶 */
+const handleTop = (value: boolean) => {
+  apis
+    .setSessionTop({ roomId: activeItem.roomId, top: value })
+    .then(() => {
+      // 更新本地会话状态
+      chatStore.updateSession(activeItem.roomId, { top: value })
+      window.$message.success(value ? '已置顶' : '已取消置顶')
+    })
+    .catch(() => {
+      window.$message.error('置顶失败')
+    })
+}
+
+/** 处理消息免打扰 */
+const handleNotification = (value: boolean) => {
+  const newType = value ? NotificationTypeEnum.NOT_DISTURB : NotificationTypeEnum.RECEPTION
+
+  apis
+    .notification({
+      roomId: activeItem.roomId,
+      type: newType
+    })
+    .then(() => {
+      // 更新本地会话状态
+      chatStore.updateSession(activeItem.roomId, {
+        muteNotification: newType
+      })
+
+      // 如果从免打扰切换到允许提醒，需要重新计算全局未读数
+      if (
+        activeItem.muteNotification === NotificationTypeEnum.NOT_DISTURB &&
+        newType === NotificationTypeEnum.RECEPTION
+      ) {
+        chatStore.updateTotalUnreadCount()
+      }
+
+      // 如果设置为免打扰，也需要更新全局未读数，因为该会话的未读数将不再计入
+      if (newType === NotificationTypeEnum.NOT_DISTURB) {
+        chatStore.updateTotalUnreadCount()
+      }
+
+      window.$message.success(value ? '已设置接收消息但不提醒' : '已允许消息提醒')
+    })
+    .catch(() => {
+      window.$message.error('设置失败')
+    })
+}
+
+/** 处理屏蔽消息 */
+const handleShield = (value: boolean) => {
+  apis
+    .shield({
+      roomId: activeItem.roomId,
+      state: value
+    })
+    .then(() => {
+      // 更新本地会话状态
+      chatStore.updateSession(activeItem.roomId, {
+        shield: value
+      })
+
+      window.$message.success(value ? '已屏蔽消息' : '已取消屏蔽')
+    })
+    .catch(() => {
+      window.$message.error('设置失败')
+    })
+}
+
 /** 删除操作二次提醒 */
 const handleDelete = (label: RoomActEnum) => {
   modalShow.value = true
   optionsType.value = label
   if (label === RoomActEnum.DELETE_FRIEND) {
     tips.value = '确定删除该好友吗?'
+  } else if (label === RoomActEnum.DISSOLUTION_GROUP) {
+    tips.value = '确定解散该群聊?'
   } else if (label === RoomActEnum.EXIT_GROUP) {
     tips.value = '确定退出该群聊?'
   } else {
@@ -374,7 +653,20 @@ const handleConfirm = () => {
       modalShow.value = false
       sidebarShow.value = false
       window.$message.success('已删除好友')
-      // TODO: 删除后当前删除的人提示不准确，无论是删除方还是被删除方都提示“您已被对方拉黑”
+    })
+  } else if (optionsType.value === RoomActEnum.DISSOLUTION_GROUP) {
+    if (activeItem.roomId === '1') {
+      window.$message.warning('无法解散频道')
+      modalShow.value = false
+      return
+    }
+
+    groupStore.exitGroup(activeItem.roomId).then(() => {
+      modalShow.value = false
+      sidebarShow.value = false
+      window.$message.success('已解散群聊')
+      // 删除当前的会话
+      useMitt.emit(MittEnum.DELETE_SESSION, activeItem.roomId)
     })
   } else if (optionsType.value === RoomActEnum.EXIT_GROUP) {
     if (activeItem.roomId === '1') {
@@ -400,6 +692,10 @@ const handleClick = () => {
 const closeMenu = (event: any) => {
   /** 点击非侧边栏元素时，关闭侧边栏，但点击弹出框元素、侧边栏图标、还有侧边栏里面的元素时不关闭 */
   if (!event.target.matches('.sidebar, .sidebar *, .n-modal-mask, .options-box *, .n-modal *') && !modalShow.value) {
+    if (sidebarShow.value) {
+      // 如果侧边栏正在显示，则在关闭前保存群聊信息
+      saveGroupInfo()
+    }
     sidebarShow.value = false
   }
 }
@@ -413,7 +709,7 @@ const currentUserStatus = computed(() => {
   const userInfo = useUserInfo(activeItem.id).value
 
   // 从状态列表中找到对应的状态
-  return userStatusStore.stateList.find((state) => state.id === userInfo.userStateId)
+  return userStatusStore.stateList.find((state: { id: string }) => state.id === userInfo.userStateId)
 })
 
 /** 状态图标 */
@@ -427,17 +723,98 @@ const statusTitle = computed(() => {
   return isOnline.value ? '在线' : '离线'
 })
 
+// 获取用户的最新头像
+const currentUserAvatar = computed(() => {
+  if (activeItem.type === RoomTypeEnum.GROUP) {
+    return AvatarUtils.getAvatarUrl(activeItem.avatar)
+  } else if (activeItem.id) {
+    return AvatarUtils.getAvatarUrl(useUserInfo(activeItem.id).value.avatar || activeItem.avatar)
+  }
+  return AvatarUtils.getAvatarUrl(activeItem.avatar)
+})
+
 onMounted(() => {
   window.addEventListener('click', closeMenu, true)
   if (!messageOptions.value?.isLoading) {
     isLoading.value = false
     showLoading.value = false
   }
+
+  // 如果是群聊，初始化时获取群组详情
+  if (activeItem.type === RoomTypeEnum.GROUP) {
+    fetchGroupDetail()
+  }
 })
 
 onUnmounted(() => {
   window.removeEventListener('click', closeMenu, true)
 })
+
+// 开始编辑群名称
+const startEditGroupName = () => {
+  if (!isGroupOwner.value) return
+
+  editingGroupName.value = activeItem.name
+  isEditingGroupName.value = true
+
+  // 在下一个事件循环中聚焦输入框
+  nextTick(() => {
+    groupNameInputRef.value?.focus()
+  })
+}
+
+// 保存群名称
+const saveGroupName = async () => {
+  if (!isGroupOwner.value || !activeItem.roomId) return
+
+  isEditingGroupName.value = false
+
+  // 检查名称是否为空或超过12个字符
+  const trimmedName = editingGroupName.value.trim()
+  if (trimmedName === '') {
+    window.$message.warning('群名称不能为空')
+    return
+  }
+
+  if (trimmedName.length > 12) {
+    window.$message.warning('群名称不能超过12个字符')
+    return
+  }
+
+  // 检查名称是否有变化
+  if (trimmedName !== activeItem.name) {
+    try {
+      // 调用更新群信息的API
+      await apis.updateRoomInfo({
+        id: activeItem.roomId,
+        name: trimmedName,
+        avatar: activeItem.avatar
+      })
+
+      // 更新本地会话状态
+      chatStore.updateSession(activeItem.roomId, {
+        name: trimmedName
+      })
+
+      window.$message.success('群名称已更新')
+    } catch (error) {
+      window.$message.error('群名称更新失败')
+      console.error('更新群名称失败:', error)
+    }
+  }
+}
+
+// 处理上传头像
+const handleUploadAvatar = () => {
+  if (!isGroupOwner.value || !activeItem.roomId) return
+
+  openFileSelector()
+}
+
+// 处理裁剪，调用hook中的方法
+const handleCrop = async (cropBlob: Blob) => {
+  await onCrop(cropBlob)
+}
 </script>
 
 <style scoped lang="scss">
@@ -451,5 +828,22 @@ onUnmounted(() => {
 .loading-enter-from,
 .loading-leave-to {
   opacity: 0;
+}
+
+.avatar-wrapper {
+  cursor: pointer;
+
+  .avatar-hover {
+    opacity: 0;
+    transition: opacity 0.4s ease-in-out;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    top: 0;
+    left: 0;
+  }
+
+  &:hover .avatar-hover {
+    opacity: 1;
+  }
 }
 </style>

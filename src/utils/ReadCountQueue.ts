@@ -1,6 +1,7 @@
 import { useMitt } from '@/hooks/useMitt.ts'
 import apis from '@/services/apis'
 import type { MsgReadUnReadCountType } from '@/services/types'
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 /**
  * 消息已读计数队列模块
@@ -45,6 +46,18 @@ const onRemoveReadCountTask = ({ msgId }: ReadCountTaskEvent) => {
 }
 
 /**
+ * 检查用户是否可以发送已读计数请求
+ * 返回布尔值表示是否可以发送请求
+ */
+const checkUserAuthentication = () => {
+  // 1. 检查当前是否在登录窗口
+  const currentWindow = WebviewWindow.getCurrent()
+  if (currentWindow.label === 'login') {
+    return false
+  }
+}
+
+/**
  * 执行消息已读计数查询任务
  * 1. 中断旧请求（如果存在）
  * 2. 检查队列是否为空
@@ -61,6 +74,15 @@ const task = async () => {
 
     // 队列为空则不发起请求
     if (queue.size === 0) return
+
+    // 检查用户是否可以发送请求
+    const canSendRequest = checkUserAuthentication()
+    if (!canSendRequest) {
+      console.log('用户未登录或在登录窗口，跳过消息已读计数请求')
+      // 在登录窗口时，清空队列并停止定时器
+      clearQueue()
+      return
+    }
 
     // 发起新的批量查询请求
     request = apis.getMsgReadCount({ msgIds: Array.from(queue) }) as AbortableRequest

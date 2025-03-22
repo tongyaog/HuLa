@@ -154,21 +154,17 @@ onMounted(() => {
     userStore.userInfo = { ...userStore.userInfo, ...rest }
     localStorage.setItem('TOKEN', token)
     localStorage.removeItem('wsLogin')
-    // 更新一下请求里面的 token.
-    //computedToken.clear()
-    //computedToken.get()
     // 获取用户详情
     userStore.getUserDetailAction()
     // 自己更新自己上线
-    await groupStore.batchUpdateUserStatus([
-      {
-        activeStatus: OnlineEnum.ONLINE,
-        avatar: rest.avatar,
-        lastOptTime: Date.now(),
-        name: rest.name,
-        uid: rest.uid
-      }
-    ])
+    await groupStore.updateUserStatus({
+      activeStatus: OnlineEnum.ONLINE,
+      avatar: rest.avatar,
+      accountCode: rest.accountCode,
+      name: rest.name,
+      uid: rest.uid,
+      lastOptTime: Date.now()
+    })
     // TODO 先不获取 emoji 列表，当我点击 emoji 按钮的时候再获取
     // await emojiStore.getEmojiList()
     await handleLoginSuccess()

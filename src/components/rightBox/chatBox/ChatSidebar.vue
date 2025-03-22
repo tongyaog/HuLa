@@ -109,12 +109,12 @@
 
                 <div
                   v-if="item.roleId === RoleEnum.LORD"
-                  class="flex p-4px rounded-4px bg-#f5dadf size-fit select-none">
+                  class="flex px-4px bg-#d5304f30 py-3px rounded-4px size-fit select-none">
                   <p class="text-(10px #d5304f)">群主</p>
                 </div>
                 <div
                   v-if="item.roleId === RoleEnum.ADMIN"
-                  class="flex p-4px rounded-4px bg-#cef9ec size-fit select-none">
+                  class="flex px-4px bg-#1a7d6b30 py-3px rounded-4px size-fit select-none">
                   <p class="text-(10px #1a7d6b)">管理员</p>
                 </div>
               </n-flex>
@@ -158,20 +158,22 @@ const userList = computed(() => {
 
   return groupUserList.value
     .map((item: UserItem) => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { uid, ...userInfo } = item // 排除uid，获取剩余内容
+      const cachedUser = useUserInfo(item.uid).value
+      // 合并数据时保留所有需要的字段
       return {
-        ...userInfo,
-        ...useUserInfo(item.uid).value
+        ...item, // 保留原始数据
+        ...cachedUser, // 合并缓存的用户数据
+        accountCode: cachedUser.accountCode || item.accountCode, // 确保accountCode被保留
+        uid: item.uid // 确保uid被保留
       }
     })
     .sort((a, b) => {
+      // roleId === 1 的排在最前面
       // 首先按照roleId排序
       if (a.roleId !== b.roleId) {
-        // roleId === 1 的排在最前面
+        // roleId === 2 的排在第二位
         if (a.roleId === RoleEnum.LORD) return -1
         if (b.roleId === RoleEnum.LORD) return 1
-        // roleId === 2 的排在第二位
         if (a.roleId === RoleEnum.ADMIN) return -1
         if (b.roleId === RoleEnum.ADMIN) return 1
       }
@@ -287,7 +289,7 @@ const userStatusStore = useUserStatusStore()
 const { stateList } = storeToRefs(userStatusStore)
 
 const getUserState = (stateId: string) => {
-  return stateList.value.find((state) => state.id === stateId)
+  return stateList.value.find((state: { id: string }) => state.id === stateId)
 }
 
 onMounted(async () => {

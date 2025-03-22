@@ -5,16 +5,13 @@
 <p align="center">一款基于Tauri、Vite 6、Vue 3 和 TypeScript 构建的即时通讯系统</p>
 
 <div align="center">
-  <a href="https://codecov.io/gh/HuLaSpark/HuLa" >
-  <img src="https://codecov.io/gh/HuLaSpark/HuLa/branch/fix%2Fglobal/graph/badge.svg?token=NM0Z13M8AZ"/>
-  </a>
   <a href="https://app.fossa.com/projects/git%2Bgithub.com%2FHuLaSpark%2FHuLa?ref=badge_shield"><img src="https://app.fossa.com/api/projects/git%2Bgithub.com%2FHuLaSpark%2FHuLa.svg?type=shield" alt=""></a>
   <a href="https://www.bestpractices.dev/zh-CN/projects/9692"><img src="https://bestpractices.coreinfrastructure.org/projects/9692/badge" alt="CI"></a>
   <img src="https://img.shields.io/badge/TypeScript-blue?logo=Typescript&style=flat&logoColor=fff">
   <img src="https://img.shields.io/badge/Vue3-35495E?logo=vue.js&logoColor=4FC08D">
   <img src="https://img.shields.io/badge/Tauri-24C8DB?logo=tauri&logoColor=FFC131">
   <img src="https://img.shields.io/badge/Rust-c57c54?logo=rust&logoColor=E34F26">
-  <img src="https://img.shields.io/badge/Vite5-35495E?logo=vite&logoColor=41D1FF">
+  <img src="https://img.shields.io/badge/Vite6-35495E?logo=vite&logoColor=41D1FF">
   <img src="https://img.shields.io/badge/UnoCss-efefef?logo=UnoCss&logoColor=606060">
   <img src="https://img.shields.io/badge/pnpm-909090?logo=pnpm&logoColor=FFC131">
   <img src="https://img.shields.io/badge/Sass-CC6699?logo=sass&logoColor=fff">
@@ -28,6 +25,10 @@
 </p>
 <p align="center">
   微信: <img src="https://img.shields.io/badge/cy2439646234-07C160?logo=wechat&logoColor=fff">
+</p>
+
+<p align="center">
+  ☕️ 服务端：<a href="https://github.com/HulaSpark/HuLa-Server">github HuLa-Server</a> | <a href="https://gitee.com/HulaSpark/HuLa-Server">gitee HuLa-Server</a>
 </p>
 
 <p align="center"><a href="README.en.md">English</a> | 中文</p>
@@ -72,6 +73,40 @@ HuLa 是一款基于 Tauri、Vite 6、Vue 3 和 TypeScript 构建的即时通讯
 <div style="padding: 28px; display: inline-block;">
   <img src="preview/img_8.png" alt="img_8.png" style="border-radius: 8px; display: block;"  />
 </div>
+
+## ✨ 已完成功能
+
+| 功能分类 | 功能描述 | 状态 |
+|---------|---------|------|
+| 🔐 **用户认证** | 账号密码登录 | ✅ 已完成 |
+| | 二维码扫码登录 | ✅ 已完成 |
+| | 多设备登录管理 | ✅ 已完成 |
+| 💬 **消息功能** | 一对一私聊 | ✅ 已完成 |
+| | 群组聊天 | ✅ 已完成 |
+| | 消息撤回 | ✅ 已完成 |
+| | @提醒、回复功能 | ✅ 已完成 |
+| | 消息已读状态 | ✅ 已完成 |
+| | 表情包功能 | ✅ 已完成 |
+| | 根据消息类型右键菜单 | ✅ 已完成 |
+| 👥 **联系人、群聊管理** | 好友添加与删除 | ✅ 已完成 |
+| | 好友搜索 | ✅ 已完成 |
+| | 群组创建与管理 | ✅ 已完成 |
+| | 好友在线状态 | ✅ 已完成 |
+| | 好友徽章 | ✅ 已完成 |
+| | 好友、群聊备注 | ✅ 已完成 |
+| | 群公告 | ✅ 已完成 |
+| | 屏蔽、拉黑、免打扰功能 | ✅ 已完成 |
+| 🎨 **UI界面** | 现代化界面设计 | ✅ 已完成 |
+| | 深色/浅色主题支持 | ✅ 已完成 |
+| | 皮肤主题切换 | ✅ 已完成 |
+| 🛠️ **系统功能** | 多窗口管理 | ✅ 已完成 |
+| | 系统托盘、托盘闪烁提醒支持 | ✅ 已完成 |
+| | 消息通知 | ✅ 已完成 |
+| | 图片查看器 | ✅ 已完成 |
+| | 截图功能 | 🚧 进行中 |
+| 🌐 **跨平台支持** | win10、win11/macOS/linux | ✅ 已完成 |
+| | iOS/Android适配 | 🚧 进行中 |
+| 🤖 **AI** | deepseek、chatgpt、claude、qwen、自定义 | 🚧 进行中 |
 
 ## 感谢以下贡献者们！
 

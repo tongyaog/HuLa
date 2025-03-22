@@ -2,8 +2,9 @@ import { defineStore } from 'pinia'
 import apis from '@/services/apis'
 import type { EmojiItem } from '@/services/types'
 import { useUserStore } from '@/stores/user'
+import { StoresEnum } from '@/enums'
 
-export const useEmojiStore = defineStore('emoji', () => {
+export const useEmojiStore = defineStore(StoresEnum.EMOJI, () => {
   const isLoading = ref(false) // 是否正在加载
   const userStore = useUserStore()
   const emojiList = ref<EmojiItem[]>([])
@@ -26,9 +27,9 @@ export const useEmojiStore = defineStore('emoji', () => {
   const addEmoji = async (emojiUrl: string) => {
     const { uid } = userStore.userInfo
     if (!uid || !emojiUrl) return
-    apis.addEmoji({ uid, expressionUrl: emojiUrl }).then((res) => {
+    apis.addEmoji({ expressionUrl: emojiUrl }).then((res) => {
       if (res) {
-        window.$message.success('添加成功')
+        window.$message.success('添加表情成功')
       }
     })
     await getEmojiList()
