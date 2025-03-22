@@ -9,17 +9,60 @@ import { useMitt } from '@/hooks/useMitt.ts'
 import { type } from '@tauri-apps/plugin-os'
 import { useDebounceFn } from '@vueuse/core'
 import { Ref } from 'vue'
-import { useCommon } from './useCommon.ts'
+import { SelectionRange, useCommon } from './useCommon.ts'
 import { readText, readImage } from '@tauri-apps/plugin-clipboard-manager'
 import Database from '@tauri-apps/plugin-sql'
 import { messageStrategyMap } from '@/strategy/MessageStrategy.ts'
 import { useTrigger } from './useTrigger'
 import type { AIModel } from '@/services/types.ts'
 
+/**
+ * 光标管理器
+ */
+export function useCursorManager() {
+  /**
+   * 记录当前光标范围
+   */
+  let cursorSelectionRange: SelectionRange | null = null
+  /**
+   * 记录当前编辑器的选取范围
+   * ps: 任何修改了原因导致焦点移动，都应该更新，无论如何
+   */
+  function updateSelectionRange(sr: SelectionRange | null) {
+    cursorSelectionRange = sr
+  }
+
+  function getCursorSelectionRange() {
+    return cursorSelectionRange
+  }
+
+  /**
+   * 聚焦制定的编辑器元素
+   * @param editor 可聚焦的编辑器元素
+   */
+  function focusOn(editor: HTMLElement) {
+    editor.focus()
+
+    const selection = window.getSelection()
+    if (!selection) return
+    const selectionRange = getCursorSelectionRange()
+    if (!selectionRange) return
+
+    const range = document.createRange()
+    range.selectNodeContents(editor)
+    range.collapse(false)
+    selection?.removeAllRanges()
+    selection?.addRange(selectionRange.range)
+  }
+
+  return { getCursorSelectionRange, updateSelectionRange, focusOn }
+}
+
 export const useMsgInput = (messageInputDom: Ref) => {
   const chatStore = useChatStore()
   const globalStore = useGlobalStore()
   const cachedStore = useCachedStore()
+  const { getCursorSelectionRange, updateSelectionRange, focusOn } = useCursorManager()
   const { triggerInputEvent, insertNode, getMessageContentType, getEditorRange, imgPaste, reply, userUid } = useCommon()
   const settingStore = useSettingStore()
   const { chat } = storeToRefs(settingStore)
@@ -301,6 +344,7 @@ export const useMsgInput = (messageInputDom: Ref) => {
 
     // 先添加到消息列表 - 此时会显示本地预览
     chatStore.pushMsg(tempMsg)
+    useMitt.emit(MittEnum.MESSAGE_ANIMATION, tempMsg)
     console.log('👾临时消息:', tempMsg)
 
     // 设置发送状态的定时器
@@ -312,9 +356,9 @@ export const useMsgInput = (messageInputDom: Ref) => {
     }, 800)
 
     try {
-      // 如果是图片消息,需要先上传文件
-      if (msg.type === MsgEnum.IMAGE) {
-        console.log('开始处理图片消息上传')
+      // 如果是图片或表情消息,需要先上传文件
+      if (msg.type === MsgEnum.IMAGE || msg.type === MsgEnum.EMOJI) {
+        console.log(`开始处理${msg.type === MsgEnum.EMOJI ? '表情包' : '图片'}消息上传`)
         const { uploadUrl, downloadUrl } = await messageStrategy.uploadFile(msg.path)
         await messageStrategy.doUpload(msg.path, uploadUrl)
 
@@ -330,7 +374,7 @@ export const useMsgInput = (messageInputDom: Ref) => {
           },
           status: MessageStatusEnum.SENDING
         })
-        console.log('图片上传完成,更新为服务器URL:', downloadUrl)
+        console.log(`${msg.type === MsgEnum.EMOJI ? '表情包' : '图片'}上传完成,更新为服务器URL:`, downloadUrl)
       }
 
       // 发送消息到服务器
@@ -354,24 +398,8 @@ export const useMsgInput = (messageInputDom: Ref) => {
       // 更新会话最后活动时间
       chatStore.updateSessionLastActiveTime(globalStore.currentSession.roomId)
 
-      // // 保存到数据库
-      // await db.value?.execute(
-      //   'INSERT INTO message (room_id, from_uid, content, reply_msg_id, status, gap_count, type, create_time, update_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-      //   [
-      //     globalStore.currentSession.roomId,
-      //     userUid.value,
-      //     msg.content,
-      //     msg.reply,
-      //     0,
-      //     0,
-      //     msg.type,
-      //     new Date().getTime(),
-      //     new Date().getTime()
-      //   ]
-      // )
-
       // 消息发送成功后释放预览URL
-      if (msg.type === MsgEnum.IMAGE && msg.url.startsWith('blob:')) {
+      if ((msg.type === MsgEnum.IMAGE || msg.type === MsgEnum.EMOJI) && msg.url.startsWith('blob:')) {
         URL.revokeObjectURL(msg.url)
       }
     } catch (error) {
@@ -473,7 +501,7 @@ export const useMsgInput = (messageInputDom: Ref) => {
       return
     }
     // 先确保输入框获得焦点
-    messageInputDom.value?.focus()
+    focusOn(messageInputDom.value)
     // 先获取并保存当前的编辑器范围
     const { range: currentRange, selection: currentSelection } = getEditorRange()!
     editorRange.value = { range: currentRange, selection: currentSelection }
@@ -511,7 +539,7 @@ export const useMsgInput = (messageInputDom: Ref) => {
       return
     }
     // 先确保输入框获得焦点
-    messageInputDom.value?.focus()
+    focusOn(messageInputDom.value)
     // 先获取并保存当前的编辑器范围
     const { range: currentRange, selection: currentSelection } = getEditorRange()!
     editorRange.value = { range: currentRange, selection: currentSelection }
@@ -616,14 +644,14 @@ export const useMsgInput = (messageInputDom: Ref) => {
       }
       if (messageInputDom.value) {
         nextTick().then(() => {
-          messageInputDom.value.focus()
+          focusOn(messageInputDom.value)
           // 插入回复框
           insertNode(
             MsgEnum.REPLY,
             { avatar: avatar, accountName: accountName, content: reply.value.content },
             {} as HTMLElement
           )
-          triggerInputEvent(messageInputDom.value)
+          updateSelectionRange(getEditorRange())
         })
       }
     })
@@ -653,6 +681,9 @@ export const useMsgInput = (messageInputDom: Ref) => {
     topicDialogVisible,
     topicKeyword,
     topicList,
-    groupedAIModels
+    groupedAIModels,
+    getCursorSelectionRange,
+    updateSelectionRange: () => updateSelectionRange(getEditorRange()),
+    focusOn
   }
 }

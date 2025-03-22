@@ -21,10 +21,15 @@ import {
   RequestFriendItem,
   SessionItem,
   UserInfoType,
-  UserItem
+  UserItem,
+  UserState,
+  Login,
+  SearchFriend,
+  SearchGroup
 } from '@/services/types'
 
 import request from '@/services/request'
+import { NotificationTypeEnum } from '@/enums'
 
 const GET = <T>(url: string, params?: any, abort?: AbortController) => request.get<T>(url, params, abort)
 const POST = <T>(url: string, params?: any, abort?: AbortController) => request.post<T>(url, params, abort)
@@ -56,6 +61,8 @@ export default {
   setUserBadge: (badgeId: string) => PUT<void>(urls.setUserBadge, { badgeId }),
   /** 修改用户名 */
   modifyUserName: (name: string) => PUT<void>(urls.modifyUserName, { name }),
+  /** 修改好友备注 */
+  modifyFriendRemark: (data: { targetUid: string; remark: string }) => POST<void>(urls.modifyFriendRemark, data),
   /** 撤回消息 */
   recallMsg: (data: { msgId: string; roomId: string }) => PUT<void>(urls.recallMsg, data),
   /** 拉黑用户 */
@@ -65,7 +72,7 @@ export default {
   /** 上传头像 */
   uploadAvatar: (data: { avatar: string }) => POST<void>(urls.uploadAvatar, data),
   /** 新增表情包 */
-  addEmoji: (data: { uid: string; expressionUrl: string }) => POST<MessageType>(urls.addEmoji, data),
+  addEmoji: (data: { expressionUrl: string }) => POST<MessageType>(urls.addEmoji, data),
   /** 获取表情 **/
   getEmoji: (params: { uid: string }) => GET<EmojiItem[]>(urls.getEmoji, { params }),
   /** 删除Emoji */
@@ -78,6 +85,10 @@ export default {
   sendAddFriendRequest: (params: { targetUid: string; msg: string }) => POST(urls.sendAddFriendRequest, params),
   /** 同意好友申请 */
   applyFriendRequest: (params: { applyId: string }) => PUT(urls.sendAddFriendRequest, params),
+  /** 忽略好友申请 */
+  ignoreFriendRequest: (params: { applyId: string }) => PUT(urls.ignoreFriendRequest, params),
+  /** 拒绝好友申请 */
+  rejectFriendRequest: (params: { applyId: string }) => PUT(urls.rejectFriendRequest, params),
   /** 删除好友 */
   deleteFriend: (params: { targetUid: string }) => DELETE(urls.deleteFriend, params),
   /** 好友申请未读数 */
@@ -102,6 +113,16 @@ export default {
   groupList: (params: { current: number; size: number }) => GET<PageInfo<GroupListReq>>(urls.groupList, params),
   /** 会话详情 */
   sessionDetail: (params: { id: string }) => GET<SessionItem>(urls.sessionDetail, params),
+  /** 搜索群聊 */
+  searchGroup: (params: { accountCode: string }) => GET<SearchGroup[]>(urls.searchGroup, params),
+  /** 搜索好友 */
+  searchFriend: (params: { key: string }) => GET<SearchFriend[]>(urls.searchFriend, params),
+  /** 免打扰 */
+  notification: (params: { roomId: string; type: NotificationTypeEnum }) => POST<void>(urls.notification, params),
+  /** 屏蔽消息 */
+  shield: (params: { roomId: string; state: boolean }) => POST<void>(urls.shield, params),
+  /** 申请加群 */
+  applyGroup: (params: { targetGroupId: string; msg: string }) => POST(urls.applyGroup, params),
   /** 会话详情(联系人列表发消息用) */
   sessionDetailWithFriends: (params: { id: string; roomType: number }) =>
     GET<SessionItem>(urls.sessionDetailWithFriends, params),
@@ -109,9 +130,13 @@ export default {
   setSessionTop: (params: { roomId: string; top: boolean }) => POST<void>(urls.setSessionTop, params),
   /** 删除会话 */
   deleteSession: (params: { roomId: string }) => DELETE<void>(urls.deleteSession, params),
-  /** 修改群信息 */
-  updateRoomInfo: (params: { roomId: string; roomName: string; roomAvatar: string }) =>
-    POST<void>(urls.updateRoomInfo, params),
+  /** 隐藏会话 */
+  hideSession: (params: { roomId: string; hide: boolean }) => POST<void>(urls.hideSession, params),
+  /** 修改群信息(群主) */
+  updateRoomInfo: (params: { id: string; name: string; avatar: string }) => POST<void>(urls.updateRoomInfo, params),
+  /** 修改“我”的群聊名称 */
+  updateMyRoomInfo: (params: { id: string; myName: string; remark: string }) =>
+    POST<void>(urls.updateMyRoomInfo, params),
   /** 添加群管理 */
   addAdmin: ({ roomId, uidList }: { roomId: string; uidList: string[] }) =>
     PUT<boolean>(urls.addAdmin, {
@@ -125,12 +150,9 @@ export default {
       uidList
     }),
   /** 退群 */
-  exitGroup: ({ roomId }: { roomId: string }) =>
-    DELETE<boolean>(urls.exitGroup, {
-      roomId
-    }),
+  exitGroup: (params: { roomId: string }) => DELETE<boolean>(urls.exitGroup, params),
   /** 账号密码登录 */
-  login: (user: LoginUserReq, abort?: AbortController) => POST<API.Login>(urls.login, user, abort),
+  login: (user: LoginUserReq, abort?: AbortController) => POST<Login>(urls.login, user, abort),
   /** 退出登录 */
   logout: (autoLogin: boolean) => POST<string>(urls.logout, { autoLogin }),
   /** 注册 */
@@ -138,7 +160,7 @@ export default {
   /** 检查token是否有效 */
   checkToken: () => POST<string>(urls.checkToken),
   /** 获取所有用户状态 */
-  getAllUserState: () => GET<API.UserState[]>(urls.getAllUserState),
+  getAllUserState: () => GET<UserState[]>(urls.getAllUserState),
   /** 用户状态改变 */
   changeUserState: (userStateId: string) => POST(`${urls.changeUserState}/${userStateId}`)
 }

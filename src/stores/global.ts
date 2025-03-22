@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { RoomTypeEnum } from '@/enums'
+import { NotificationTypeEnum, RoomTypeEnum, StoresEnum } from '@/enums'
 import { useChatStore } from '@/stores/chat'
 import type { ContactItem, RequestFriendItem } from '@/services/types'
 import { clearQueue, readCountQueue } from '@/utils/ReadCountQueue.ts'
@@ -7,7 +7,7 @@ import apis from '@/services/apis'
 import { invoke } from '@tauri-apps/api/core'
 
 export const useGlobalStore = defineStore(
-  'global',
+  StoresEnum.GLOBAL,
   () => {
     const chatStore = useChatStore()
 
@@ -38,6 +38,14 @@ export const useGlobalStore = defineStore(
       uid: void 0
     })
 
+    // 添加群聊模态框信息
+    const addGroupModalInfo = ref<{ show: boolean; name?: string; avatar?: string; accountCode?: string }>({
+      show: false,
+      name: '',
+      avatar: '',
+      accountCode: ''
+    })
+
     // 创建群聊模态框信息
     const createGroupModalInfo = reactive<{
       show: boolean
@@ -56,8 +64,12 @@ export const useGlobalStore = defineStore(
 
     // 更新全局未读消息计数
     const updateGlobalUnreadCount = async () => {
-      // 计算所有会话的未读消息总数
+      // 计算所有会话的未读消息总数，排除免打扰的会话
       const totalUnread = chatStore.sessionList.reduce((total, session) => {
+        // 如果是免打扰的会话，不计入总数
+        if (session.muteNotification === NotificationTypeEnum.NOT_DISTURB) {
+          return total
+        }
         return total + (session.unreadCount || 0)
       }, 0)
       unReadMark.newMsgUnreadCount = totalUnread
@@ -87,6 +99,7 @@ export const useGlobalStore = defineStore(
       unReadMark,
       currentSession,
       addFriendModalInfo,
+      addGroupModalInfo,
       currentSelectedContact,
       currentReadUnreadList,
       createGroupModalInfo,

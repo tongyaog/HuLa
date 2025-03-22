@@ -58,8 +58,6 @@ export enum MittEnum {
   UPDATE_MSG_TOTAL = 'updateMsgTotal',
   /** 显示消息框 */
   MSG_BOX_SHOW = 'msgBoxShow',
-  /** 发送消息 */
-  SEND_MESSAGE = 'sendMessage',
   /** 跳到发送信息 */
   TO_SEND_MSG = 'toSendMsg',
   /** 缩小窗口 */
@@ -86,8 +84,14 @@ export enum MittEnum {
   RE_EDIT = 'reEdit',
   /** 删除会话 */
   DELETE_SESSION = 'deleteSession',
+  /** 隐藏会话 */
+  HIDE_SESSION = 'hideSession',
   /** 定位会话 */
-  LOCATE_SESSION = 'locateSession'
+  LOCATE_SESSION = 'locateSession',
+  /** 消息动画 */
+  MESSAGE_ANIMATION = 'messageAnimation',
+  /** 聊天框滚动到底部 */
+  CHAT_SCROLL_BOTTOM = 'CHAT_SCROLL_BOTTOM'
 }
 
 /** 主题类型 */
@@ -121,7 +125,21 @@ export enum StoresEnum {
   /** 图片查看器数据 */
   IMAGEVIEWER = 'imageViewer',
   /** 用户状态 */
-  USER_STATE = 'userState'
+  USER_STATE = 'userState',
+  /** 用户 */
+  USER = 'user',
+  /** 群组 */
+  GROUP = 'group',
+  /** 全局 */
+  GLOBAL = 'global',
+  /** 表情 */
+  EMOJI = 'emoji',
+  /** 联系人 */
+  CONTACTS = 'contacts',
+  /** 聊天 */
+  CHAT = 'chat',
+  /** 缓存 */
+  CACHED = 'cached'
 }
 
 /**
@@ -230,6 +248,8 @@ export enum RoomTypeEnum {
 export enum RoomActEnum {
   /** 退出群聊 */
   EXIT_GROUP,
+  /** 解散群聊 */
+  DISSOLUTION_GROUP,
   /** 删除好友 */
   DELETE_FRIEND,
   /** 删除记录 */
@@ -376,4 +396,14 @@ export enum SessionOperateEnum {
   DISSOLUTION_GROUP = 1,
   /** 退出群聊 */
   EXIT_GROUP = 2 | 3
+}
+
+/**
+ * 通知类型 0 -> 允许接受消息 1 -> 接收但不提醒[免打扰] 2 -> 屏蔽消息
+ */
+export enum NotificationTypeEnum {
+  /** 允许接受消息 */
+  RECEPTION = 0,
+  /** 接收但不提醒[免打扰] */
+  NOT_DISTURB = 1
 }

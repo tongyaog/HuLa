@@ -5,16 +5,13 @@
 <p align="center">An Instant Messaging System Built with Tauri, Vite 6, Vue 3, and TypeScript</p>
 
 <div align="center">
-  <a href="https://codecov.io/gh/HuLaSpark/HuLa" >
-  <img src="https://codecov.io/gh/HuLaSpark/HuLa/branch/fix%2Fglobal/graph/badge.svg?token=NM0Z13M8AZ"/>
-  </a>
   <a href="https://app.fossa.com/projects/git%2Bgithub.com%2FHuLaSpark%2FHuLa?ref=badge_shield"><img src="https://app.fossa.com/api/projects/git%2Bgithub.com%2FHuLaSpark%2FHuLa.svg?type=shield" alt=""></a>
   <a href="https://www.bestpractices.dev/zh-CN/projects/9692"><img src="https://bestpractices.coreinfrastructure.org/projects/9692/badge" alt="CI"></a>
   <img src="https://img.shields.io/badge/TypeScript-blue?logo=Typescript&style=flat&logoColor=fff">
   <img src="https://img.shields.io/badge/Vue3-35495E?logo=vue.js&logoColor=4FC08D">
   <img src="https://img.shields.io/badge/Tauri-24C8DB?logo=tauri&logoColor=FFC131">
   <img src="https://img.shields.io/badge/Rust-c57c54?logo=rust&logoColor=E34F26">
-  <img src="https://img.shields.io/badge/Vite5-35495E?logo=vite&logoColor=41D1FF">
+  <img src="https://img.shields.io/badge/Vite6-35495E?logo=vite&logoColor=41D1FF">
   <img src="https://img.shields.io/badge/UnoCss-efefef?logo=UnoCss&logoColor=606060">
   <img src="https://img.shields.io/badge/pnpm-909090?logo=pnpm&logoColor=FFC131">
   <img src="https://img.shields.io/badge/Sass-CC6699?logo=sass&logoColor=fff">
@@ -28,6 +25,10 @@
 </p>
 <p align="center">
   WeChat: <img src="https://img.shields.io/badge/cy2439646234-07C160?logo=wechat&logoColor=fff">
+</p>
+
+<p align="center">
+  ☕️ server：<a href="https://github.com/HulaSpark/HuLa-Server">github HuLa-Server</a> | <a href="https://gitee.com/HulaSpark/HuLa-Server">gitee HuLa-Server</a>
 </p>
 
 <p align="center"><a href="README.zh-CN.md">中文</a> | English</p>
@@ -72,6 +73,40 @@ HuLa is an instant messaging system developed with Tauri, Vite 6, Vue 3, and Typ
 <div style="padding: 28px; display: inline-block;">
   <img src="preview/img_8.png" alt="img_8.png" style="border-radius: 8px; display: block;"  />
 </div>
+
+## ✨ Completed Features
+
+| Feature Category | Feature Description | Status |
+|-----------------|---------------------|--------|
+| 🔐 **User Authentication** | Username/Password Login | ✅ Completed |
+| | QR Code Scan Login | ✅ Completed |
+| | Multi-device Login Management | ✅ Completed |
+| 💬 **Messaging** | One-on-one Private Chat | ✅ Completed |
+| | Group Chat | ✅ Completed |
+| | Message Recall | ✅ Completed |
+| | @Mention, Reply Function | ✅ Completed |
+| | Message Read Status | ✅ Completed |
+| | Emoji Function | ✅ Completed |
+| | Context Menu Based on Message Type | ✅ Completed |
+| 👥 **Contact & Group Management** | Friend Add/Remove | ✅ Completed |
+| | Friend Search | ✅ Completed |
+| | Group Creation and Management | ✅ Completed |
+| | Friend Online Status | ✅ Completed |
+| | Friend Badges | ✅ Completed |
+| | Friend & Group Notes | ✅ Completed |
+| | Group Announcements | ✅ Completed |
+| | Block, Blacklist, Do Not Disturb | ✅ Completed |
+| 🎨 **UI Interface** | Modern Interface Design | ✅ Completed |
+| | Dark/Light Theme Support | ✅ Completed |
+| | Skin Theme Switching | ✅ Completed |
+| 🛠️ **System Functions** | Multi-window Management | ✅ Completed |
+| | System Tray, Tray Flash Notifications | ✅ Completed |
+| | Message Notifications | ✅ Completed |
+| | Image Viewer | ✅ Completed |
+| | Screenshot Function | 🚧 In Progress |
+| 🌐 **Cross-platform Support** | Win10, Win11/macOS/Linux | ✅ Completed |
+| | iOS/Android Adaptation | 🚧 In Progress |
+| 🤖 **AI** | DeepSeek, ChatGPT, Claude, Qwen, Custom | 🚧 In Progress |
 
 ## Thanks to the following contributors!
 

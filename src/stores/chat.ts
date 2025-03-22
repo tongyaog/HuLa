@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { useRoute } from 'vue-router'
 import apis from '@/services/apis'
 import type { MarkItemType, MessageType, RevokedMsgType, SessionItem } from '@/services/types'
-import { MarkEnum, MessageStatusEnum, MsgEnum, RoomTypeEnum } from '@/enums'
+import { MarkEnum, MessageStatusEnum, MsgEnum, NotificationTypeEnum, RoomTypeEnum, StoresEnum } from '@/enums'
 import { computedTimeBlock } from '@/utils/ComputedTime.ts'
 import { useCachedStore } from '@/stores/cached.ts'
 import { useGlobalStore } from '@/stores/global.ts'
@@ -28,6 +28,11 @@ let isFirstInit = false
 // 撤回消息的过期时间
 const RECALL_EXPIRATION_TIME = 2 * 60 * 1000 // 2分钟，单位毫秒
 
+// 定义消息数量阈值
+const MESSAGE_THRESHOLD = 120
+// 定义保留的最新消息数量
+const KEEP_MESSAGE_COUNT = 60
+
 // 创建src/workers/timer.worker.ts
 const timerWorker = new Worker(new URL('../workers/timer.worker.ts', import.meta.url))
 
@@ -37,7 +42,7 @@ timerWorker.onerror = (error) => {
 }
 
 export const useChatStore = defineStore(
-  'chat',
+  StoresEnum.CHAT,
   () => {
     const route = useRoute()
     const cachedStore = useCachedStore()
@@ -146,15 +151,181 @@ export const useChatStore = defineStore(
       }
     })
 
+    /** ========================== localStorage 存储逻辑   ==================================== */
+    // 本地存储消息的键名前缀
+    const MESSAGE_STORAGE_KEY_PREFIX = 'hula_messages_'
+    // 本地存储消息选项的键名前缀
+    const MESSAGE_OPTIONS_STORAGE_KEY_PREFIX = 'hula_message_options_'
+    // 本地存储回复映射的键名前缀
+    const REPLY_MAPPING_STORAGE_KEY_PREFIX = 'hula_reply_mapping_'
+    // localStorage 存储大小限制 (约 5MB)
+    const STORAGE_SIZE_LIMIT = 5 * 1024 * 1024
+
+    // 将消息保存到 localStorage
+    const saveMessagesToStorage = (roomId: string) => {
+      try {
+        if (!roomId) return
+
+        // 获取当前房间的消息
+        const messages = messageMap.get(roomId)
+        if (!messages || messages.size === 0) return
+
+        // 将 Map 转换为数组以便序列化
+        const messagesArray = Array.from(messages.entries())
+        const serializedMessages = JSON.stringify(messagesArray)
+
+        // 检查序列化后的数据大小
+        if (serializedMessages.length > STORAGE_SIZE_LIMIT) {
+          console.warn(`消息数据过大，无法完全保存到 localStorage: ${roomId}`)
+          // 只保存最新的消息
+          const recentMessages = Array.from(messages.entries()).slice(-KEEP_MESSAGE_COUNT)
+          localStorage.setItem(`${MESSAGE_STORAGE_KEY_PREFIX}${roomId}`, JSON.stringify(recentMessages))
+        } else {
+          localStorage.setItem(`${MESSAGE_STORAGE_KEY_PREFIX}${roomId}`, serializedMessages)
+        }
+
+        // 保存消息加载状态
+        const options = messageOptions.get(roomId)
+        if (options) {
+          localStorage.setItem(`${MESSAGE_OPTIONS_STORAGE_KEY_PREFIX}${roomId}`, JSON.stringify(options))
+        }
+
+        // 保存回复映射
+        const replyMap = replyMapping.get(roomId)
+        if (replyMap) {
+          const replyMapArray = Array.from(replyMap.entries())
+          localStorage.setItem(`${REPLY_MAPPING_STORAGE_KEY_PREFIX}${roomId}`, JSON.stringify(replyMapArray))
+        }
+      } catch (error) {
+        console.error('保存消息到 localStorage 失败:', error)
+      }
+    }
+
+    // 从 localStorage 加载消息
+    const loadMessagesFromStorage = (roomId: string): boolean => {
+      try {
+        if (!roomId) return false
+
+        // 加载消息
+        const serializedMessages = localStorage.getItem(`${MESSAGE_STORAGE_KEY_PREFIX}${roomId}`)
+        if (serializedMessages) {
+          const messagesArray = JSON.parse(serializedMessages)
+          // 只加载最新的20条消息
+          const recentMessages = messagesArray.slice(-pageSize)
+          const messagesMap = new Map(recentMessages)
+          messageMap.set(roomId, messagesMap as Map<string, MessageType>)
+
+          // 加载消息选项
+          const serializedOptions = localStorage.getItem(`${MESSAGE_OPTIONS_STORAGE_KEY_PREFIX}${roomId}`)
+          if (serializedOptions) {
+            const options = JSON.parse(serializedOptions)
+            messageOptions.set(roomId, options)
+          }
+
+          // 加载回复映射
+          const serializedReplyMap = localStorage.getItem(`${REPLY_MAPPING_STORAGE_KEY_PREFIX}${roomId}`)
+          if (serializedReplyMap) {
+            const replyMapArray = JSON.parse(serializedReplyMap)
+            const replyMap = new Map(replyMapArray)
+            replyMapping.set(roomId, replyMap as Map<string, string[]>)
+          }
+
+          return true
+        }
+        return false
+      } catch (error) {
+        console.error('从 localStorage 加载消息失败:', error)
+        return false
+      }
+    }
+
+    // 清理过期或不需要的消息缓存
+    const cleanupMessageStorage = () => {
+      try {
+        // 获取所有 localStorage 键
+        const keys = Object.keys(localStorage)
+
+        // 找出所有消息相关的键
+        const messageKeys = keys.filter(
+          (key) =>
+            key.startsWith(MESSAGE_STORAGE_KEY_PREFIX) ||
+            key.startsWith(MESSAGE_OPTIONS_STORAGE_KEY_PREFIX) ||
+            key.startsWith(REPLY_MAPPING_STORAGE_KEY_PREFIX)
+        )
+
+        // 获取当前活跃的房间ID列表
+        const activeRoomIds = sessionList.map((session) => session.roomId)
+
+        // 删除不在活跃会话列表中的消息缓存
+        messageKeys.forEach((key) => {
+          // 提取房间ID
+          let roomId = ''
+          if (key.startsWith(MESSAGE_STORAGE_KEY_PREFIX)) {
+            roomId = key.substring(MESSAGE_STORAGE_KEY_PREFIX.length)
+          } else if (key.startsWith(MESSAGE_OPTIONS_STORAGE_KEY_PREFIX)) {
+            roomId = key.substring(MESSAGE_OPTIONS_STORAGE_KEY_PREFIX.length)
+          } else if (key.startsWith(REPLY_MAPPING_STORAGE_KEY_PREFIX)) {
+            roomId = key.substring(REPLY_MAPPING_STORAGE_KEY_PREFIX.length)
+          }
+
+          // 如果房间ID不在活跃列表中，删除相关缓存
+          if (roomId && !activeRoomIds.includes(roomId)) {
+            localStorage.removeItem(key)
+          }
+        })
+      } catch (error) {
+        console.error('清理消息缓存失败:', error)
+      }
+    }
+    /** ========================== end  ==================================== */
+
     // 监听当前房间ID的变化
     watch(currentRoomId, (val, oldVal) => {
       if (oldVal !== undefined && val !== oldVal) {
-        // 切换的 rooms是空数据的话就请求消息列表
-        if (!currentMessageMap.value || currentMessageMap.value.size === 0) {
-          if (!currentMessageMap.value) {
-            messageMap.set(currentRoomId.value, new Map())
-          }
-          getMsgList()
+        // 保存旧房间的消息到 localStorage
+        if (oldVal) {
+          saveMessagesToStorage(oldVal)
+        }
+
+        // 1. 立即清空当前消息列表
+        if (currentMessageMap.value) {
+          currentMessageMap.value.clear()
+        }
+
+        // 2. 重置消息加载状态
+        currentMessageOptions.value = {
+          isLast: false,
+          isLoading: true,
+          cursor: ''
+        }
+
+        // 3. 清空回复映射
+        if (currentReplyMap.value) {
+          currentReplyMap.value.clear()
+        }
+
+        // 4. 尝试从 localStorage 加载新房间的消息
+        const loadedFromStorage = val ? loadMessagesFromStorage(val) : false
+
+        // 5. 如果没有从 localStorage 加载到消息，则从服务器加载
+        if (!loadedFromStorage) {
+          // 使用 nextTick 确保状态已更新
+          nextTick(async () => {
+            try {
+              // 从服务器加载消息
+              await getMsgList()
+            } catch (error) {
+              console.error('无法加载消息:', error)
+              currentMessageOptions.value = {
+                isLast: false,
+                isLoading: false,
+                cursor: ''
+              }
+            }
+          })
+        } else {
+          // 从 localStorage 加载成功，更新加载状态
+          currentMessageOptions.value.isLoading = false
         }
 
         // 群组的时候去请求
@@ -186,17 +357,26 @@ export const useChatStore = defineStore(
 
     // 获取消息列表
     const getMsgList = async (size = pageSize) => {
+      // 获取当前房间ID，用于后续比较
+      const requestRoomId = currentRoomId.value
+
       currentMessageOptions.value && (currentMessageOptions.value.isLoading = true)
       const data = await apis
         .getMsgList({
           pageSize: size,
           cursor: currentMessageOptions.value?.cursor,
-          roomId: currentRoomId.value
+          roomId: requestRoomId
         })
         .finally(() => {
-          currentMessageOptions.value && (currentMessageOptions.value.isLoading = false)
+          // 只有当当前房间ID仍然是请求时的房间ID时，才更新加载状态
+          if (requestRoomId === currentRoomId.value && currentMessageOptions.value) {
+            currentMessageOptions.value.isLoading = false
+          }
         })
-      if (!data) return
+
+      // 如果没有数据或者房间ID已经变化，则不处理响应
+      if (!data || requestRoomId !== currentRoomId.value) return
+
       const computedList = computedTimeBlock(data.list)
 
       /** 收集需要请求用户详情的 uid */
@@ -216,6 +396,10 @@ export const useChatStore = defineStore(
       }
       // 获取用户信息缓存
       await cachedStore.getBatchUserInfo([...uidCollectYet])
+
+      // 再次检查房间ID是否变化，防止在获取用户信息期间切换了房间
+      if (requestRoomId !== currentRoomId.value) return
+
       // 为保证获取的历史消息在前面
       const newList = [...computedList, ...chatMessageList.value]
       currentMessageMap.value?.clear() // 清空Map
@@ -228,6 +412,9 @@ export const useChatStore = defineStore(
         currentMessageOptions.value.isLast = data.isLast
         currentMessageOptions.value.isLoading = false
       }
+
+      // 保存消息到localStorage
+      saveMessagesToStorage(requestRoomId)
     }
 
     // 获取会话列表
@@ -258,6 +445,9 @@ export const useChatStore = defineStore(
       sessionOptions.isLoading = false
 
       sortAndUniqueSessionList()
+
+      // 清理不再活跃的会话消息缓存
+      cleanupMessageStorage()
 
       // sessionList[0].unreadCount = 0
       if (!isFirstInit || isFresh) {
@@ -295,10 +485,16 @@ export const useChatStore = defineStore(
     }
 
     // 更新会话
-    const updateSession = (roomId: string, roomProps: Partial<SessionItem>) => {
-      const session = sessionList.find((item) => item.roomId === roomId)
-      session && roomProps && Object.assign(session, roomProps)
-      sortAndUniqueSessionList()
+    const updateSession = (roomId: string, data: Partial<SessionItem>) => {
+      const index = sessionList.findIndex((session) => session.roomId === roomId)
+      if (index !== -1) {
+        sessionList[index] = { ...sessionList[index], ...data }
+
+        // 如果更新了免打扰状态，需要重新计算全局未读数
+        if ('muteNotification' in data) {
+          updateTotalUnreadCount()
+        }
+      }
     }
 
     // 更新会话最后活跃时间
@@ -322,8 +518,20 @@ export const useChatStore = defineStore(
     // 推送消息
     const pushMsg = async (msg: MessageType) => {
       const current = messageMap.get(msg.message.roomId)
-      // TODO 超过五分钟发送信息的时候没有显示时间差的时间戳 (nyh -> 2024-05-21 00:17:15)
       current?.set(msg.message.id, msg)
+
+      // 检查消息数量是否超过阈值
+      if (current && current.size > MESSAGE_THRESHOLD) {
+        // 获取所有消息ID并按时间排序
+        const messageIds = Array.from(current.keys())
+        const messagesToDelete = messageIds.slice(0, messageIds.length - KEEP_MESSAGE_COUNT)
+
+        // 删除旧消息
+        messagesToDelete.forEach((id) => current.delete(id))
+      }
+
+      // 保存消息到localStorage
+      saveMessagesToStorage(msg.message.roomId)
 
       // 获取用户信息缓存
       const uid = msg.fromUser.uid
@@ -522,16 +730,14 @@ export const useChatStore = defineStore(
 
     // 标记已读数为 0
     const markSessionRead = (roomId: string) => {
-      const session = sessionList.find((item) => item.roomId === roomId)
-      const unreadCount = session?.unreadCount || 0
-      if (session && session.unreadCount > 0) {
+      const session = sessionList.find((s) => s.roomId === roomId)
+      if (session) {
+        // 更新会话的未读数
         session.unreadCount = 0
-        // 使用 nextTick 确保状态更新后再计算总未读数
-        nextTick(() => {
-          updateTotalUnreadCount()
-        })
+
+        // 重新计算全局未读数，使用 chatStore 中的方法以保持一致性
+        updateTotalUnreadCount()
       }
-      return unreadCount
     }
 
     // 根据消息id获取消息体
@@ -588,6 +794,10 @@ export const useChatStore = defineStore(
     const updateTotalUnreadCount = () => {
       // 使用 Array.from 确保遍历的是最新的 sessionList
       const totalUnread = Array.from(sessionList).reduce((total, session) => {
+        // 免打扰的会话不计入全局未读数
+        if (session.muteNotification === NotificationTypeEnum.NOT_DISTURB) {
+          return total
+        }
         // 确保 unreadCount 是数字且不为负数
         const unread = Math.max(0, session.unreadCount || 0)
         return total + unread
@@ -642,7 +852,10 @@ export const useChatStore = defineStore(
       recalledMessages,
       clearAllExpirationTimers,
       updateTotalUnreadCount,
-      clearUnreadCount
+      clearUnreadCount,
+      saveMessagesToStorage,
+      loadMessagesFromStorage,
+      cleanupMessageStorage
     }
   },
   {
